@@ -216,3 +216,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# 1ITDA: 업로드된 이력서/이미지 원본은 저장소에 포함하지 않음
+uploads/*
+!uploads/.gitkeep

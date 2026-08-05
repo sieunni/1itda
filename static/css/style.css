@@ -1,0 +1,186 @@
+:root {
+  --color-primary: #2563eb;
+  --color-primary-dark: #1d4ed8;
+  --color-text: #1f2937;
+  --color-muted: #6b7280;
+  --color-border: #e5e7eb;
+  --color-bg: #f9fafb;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Pretendard", "Apple SD Gothic Neo", "Segoe UI", sans-serif;
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
+.site-header {
+  background: #fff;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.navbar {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.logo {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.nav-links {
+  display: flex;
+  gap: 20px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  align-items: center;
+}
+
+.nav-links a {
+  color: var(--color-text);
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+
+.nav-links a:hover {
+  color: var(--color-primary);
+}
+
+.btn-signup {
+  background: var(--color-primary);
+  color: #fff !important;
+  padding: 8px 14px;
+  border-radius: 6px;
+}
+
+.site-main {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 48px 24px;
+}
+
+.hero {
+  text-align: center;
+  padding: 64px 24px;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+}
+
+.hero h1 {
+  font-size: 2.2rem;
+  margin-bottom: 12px;
+}
+
+.hero h1 span {
+  color: var(--color-primary);
+}
+
+.hero p {
+  color: var(--color-muted);
+  margin-bottom: 24px;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.btn {
+  display: inline-block;
+  padding: 10px 20px;
+  border-radius: 6px;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: var(--color-primary-dark);
+}
+
+.btn-outline {
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+}
+
+.latest-jobs {
+  margin-top: 48px;
+}
+
+.latest-jobs h2 {
+  margin-bottom: 20px;
+}
+
+.job-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.job-card {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 20px;
+  transition: box-shadow 0.15s ease;
+}
+
+.job-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.job-card a {
+  text-decoration: none;
+  color: inherit;
+}
+
+.job-card h3 {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+}
+
+.job-meta,
+.job-deadline {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.85rem;
+}
+
+.empty-state {
+  color: var(--color-muted);
+  text-align: center;
+  padding: 48px 0;
+}
+
+.placeholder {
+  text-align: center;
+  padding: 64px 24px;
+}
+
+.site-footer {
+  text-align: center;
+  padding: 24px;
+  color: var(--color-muted);
+  font-size: 0.85rem;
+}

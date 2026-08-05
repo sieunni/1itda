@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}1ITDA(일잇다) - IT 업계 전문 채용 플랫폼{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <h1>IT 업계와 인재를 잇다, <span>1ITDA</span></h1>
+  <p>구직자는 채용공고를 검색하고 지원하며, 기업은 공고를 등록하고 지원자를 관리합니다.</p>
+  <div class="hero-actions">
+    <a class="btn btn-primary" href="{{ url_for('jobs.job_list') }}">채용공고 보기</a>
+    <a class="btn btn-outline" href="{{ url_for('auth.join') }}">회원가입</a>
+  </div>
+</section>
+
+<section class="latest-jobs">
+  <h2>최신 채용공고</h2>
+
+  {% if jobs %}
+  <ul class="job-cards">
+    {% for job in jobs %}
+    <li class="job-card">
+      <a href="{{ url_for('jobs.job_detail', job_id=job.job_id) }}">
+        <h3>{{ job.title }}</h3>
+        <p class="job-meta">
+          {{ job.company.company_name if job.company else "" }}
+          {% if job.region %} · {{ job.region }}{% endif %}
+          {% if job.industry %} · {{ job.industry }}{% endif %}
+        </p>
+        {% if job.deadline %}<p class="job-deadline">마감일 {{ job.deadline }}</p>{% endif %}
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="empty-state">등록된 공고가 없습니다.</p>
+  {% endif %}
+</section>
+{% endblock %}

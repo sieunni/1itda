@@ -1,0 +1,123 @@
+from datetime import datetime
+
+from extensions import db
+
+
+class User(db.Model):
+    __tablename__ = "users"
+
+    user_id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    role = db.Column(db.String(20), nullable=False)  # jobseeker / company / admin
+    name = db.Column(db.String(80))
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    company = db.relationship("Company", back_populates="owner", uselist=False)
+
+
+class Company(db.Model):
+    __tablename__ = "companies"
+
+    company_id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.user_id"), nullable=False)
+    company_name = db.Column(db.String(120), nullable=False)
+    is_verified = db.Column(db.Boolean, default=False, nullable=False)
+    description = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    owner = db.relationship("User", back_populates="company")
+    jobs = db.relationship("Job", back_populates="company")
+
+
+class Job(db.Model):
+    __tablename__ = "jobs"
+
+    job_id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.company_id"), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    region = db.Column(db.String(80))
+    industry = db.Column(db.String(80))
+    deadline = db.Column(db.Date)
+    status = db.Column(db.String(20), nullable=False, default="pending")  # pending/approved/blocked/closed
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    company = db.relationship("Company", back_populates="jobs")
+    applications = db.relationship("Application", back_populates="job")
+    scraps = db.relationship("Scrap", back_populates="job")
+
+
+class Resume(db.Model):
+    __tablename__ = "resumes"
+
+    resume_id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.user_id"), nullable=False)
+    file_path = db.Column(db.String(255))  # 서버 저장 경로(난수 파일명)
+    original_filename = db.Column(db.String(255))
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class Application(db.Model):
+    __tablename__ = "applications"
+    __table_args__ = (db.UniqueConstraint("user_id", "job_id", name="uq_application_user_job"),)
+
+    application_id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.user_id"), nullable=False)
+    job_id = db.Column(db.Integer, db.ForeignKey("jobs.job_id"), nullable=False)
+    resume_id = db.Column(db.Integer, db.ForeignKey("resumes.resume_id"))
+    resume_snapshot = db.Column(db.Text)  # 지원 당시 이력서 스냅샷(보존용)
+    status = db.Column(db.String(20), nullable=False, default="submitted")  # submitted/cancelled/accepted/rejected
+    applied_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    job = db.relationship("Job", back_populates="applications")
+    status_history = db.relationship("ApplicationStatusHistory", back_populates="application")
+
+
+class ApplicationStatusHistory(db.Model):
+    __tablename__ = "application_status_history"
+
+    history_id = db.Column(db.Integer, primary_key=True)
+    application_id = db.Column(db.Integer, db.ForeignKey("applications.application_id"), nullable=False)
+    old_status = db.Column(db.String(20))
+    new_status = db.Column(db.String(20))
+    changed_by = db.Column(db.Integer, db.ForeignKey("users.user_id"))
+    changed_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    application = db.relationship("Application", back_populates="status_history")
+
+
+class Scrap(db.Model):
+    __tablename__ = "scraps"
+    __table_args__ = (db.UniqueConstraint("user_id", "job_id", name="uq_scrap_user_job"),)
+
+    scrap_id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.user_id"), nullable=False)
+    job_id = db.Column(db.Integer, db.ForeignKey("jobs.job_id"), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    job = db.relationship("Job", back_populates="scraps")
+
+
+class Report(db.Model):
+    __tablename__ = "reports"
+
+    report_id = db.Column(db.Integer, primary_key=True)
+    reporter_id = db.Column(db.Integer, db.ForeignKey("users.user_id"), nullable=False)
+    target_type = db.Column(db.String(20), nullable=False)  # job / company / user
+    target_id = db.Column(db.Integer, nullable=False)
+    reason = db.Column(db.Text)
+    status = db.Column(db.String(20), nullable=False, default="pending")  # pending/reviewed/rejected
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class AdminActionLog(db.Model):
+    __tablename__ = "admin_action_logs"
+
+    log_id = db.Column(db.Integer, primary_key=True)
+    admin_id = db.Column(db.Integer, db.ForeignKey("users.user_id"), nullable=False)
+    action_type = db.Column(db.String(40))  # 승인/차단/삭제 등
+    target_type = db.Column(db.String(20))  # job/company/user/report
+    target_id = db.Column(db.Integer)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)

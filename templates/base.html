@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}1ITDA(일잇다){% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <header class="site-header">
+    <nav class="navbar">
+      <a class="logo" href="{{ url_for('index') }}">1ITDA</a>
+      <ul class="nav-links">
+        <li><a href="{{ url_for('jobs.job_list') }}">공고 목록</a></li>
+        <li><a href="{{ url_for('company.dashboard') }}">기업</a></li>
+        <li><a href="{{ url_for('profile.mypage') }}">마이페이지</a></li>
+        <li><a href="{{ url_for('auth.login') }}">로그인</a></li>
+        <li><a href="{{ url_for('auth.join') }}" class="btn-signup">회원가입</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main class="site-main">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-footer">
+    <p>&copy; 2026 1ITDA(일잇다). IT 업계 전문 채용 서비스 플랫폼.</p>
+  </footer>
+</body>
+</html>
