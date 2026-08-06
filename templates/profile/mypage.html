@@ -68,7 +68,7 @@
 
       <div class="mypage-subgrid">
         <section class="mypage-panel compact-panel"><div class="panel-heading"><div><h2>스크랩 공고</h2><p>관심 있는 채용공고</p></div></div>{% if scraps %}<ul class="mini-list">{% for scrap in scraps %}<li><a href="{{ url_for('jobs.job_detail', job_id=scrap.job_id) }}"><strong>{{ scrap.job.title }}</strong><span>{{ scrap.job.company.company_name if scrap.job.company else '' }}</span></a></li>{% endfor %}</ul>{% else %}<p class="compact-empty">스크랩한 공고가 없습니다.</p>{% endif %}</section>
-        <section class="mypage-panel compact-panel"><div class="panel-heading"><div><h2>내 이력서</h2><p>등록한 이력서 파일</p></div></div>{% if resumes %}<ul class="mini-list">{% for resume in resumes %}<li><a class="resume-preview-link" href="{{ url_for('profile.resume_preview', resume_id=resume.resume_id) }}" target="_blank" rel="noopener"><span class="resume-preview-icon">{{ 'PDF' if (resume.original_filename or '').lower().endswith('.pdf') else 'DOC' }}</span><span class="resume-preview-text"><strong>{{ resume.original_filename or '이력서' }}</strong><small>{{ resume.uploaded_at.strftime('%Y.%m.%d') }} 등록 · {{ '미리보기' if (resume.original_filename or '').lower().endswith('.pdf') else '다운로드' }}</small></span><span class="resume-preview-arrow">↗</span></a></li>{% endfor %}</ul>{% else %}<p class="compact-empty">등록된 이력서가 없습니다.</p>{% endif %}</section>
+        <section class="mypage-panel compact-panel"><div class="panel-heading"><div><h2>내 이력서</h2><p>기존 제출본은 보존하고 새 버전을 등록합니다.</p></div></div><form class="mypage-resume-upload" method="post" enctype="multipart/form-data" action="{{ url_for('profile.resume_upload') }}">{% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}<label for="mypage_resume_file"><span>＋</span><strong>새 이력서 등록</strong><small>PDF, DOC, DOCX · 최대 5MB</small><input id="mypage_resume_file" type="file" name="resume_file" accept=".pdf,.doc,.docx" required></label><span class="mypage-resume-filename" aria-live="polite"></span><button class="btn btn-primary" type="submit">등록하기</button></form>{% if resumes %}<ul class="mini-list resume-list">{% for resume in resumes %}<li><a class="resume-preview-link" href="{{ url_for('profile.resume_preview', resume_id=resume.resume_id) }}" target="_blank" rel="noopener"><span class="resume-preview-icon">{{ 'PDF' if (resume.original_filename or '').lower().endswith('.pdf') else 'DOC' }}</span><span class="resume-preview-text"><strong>{{ resume.original_filename or '이력서' }}</strong><small>{{ resume.uploaded_at.strftime('%Y.%m.%d') }} 등록 · {{ '미리보기' if (resume.original_filename or '').lower().endswith('.pdf') else '다운로드' }}</small></span><span class="resume-preview-arrow">↗</span></a></li>{% endfor %}</ul>{% else %}<p class="compact-empty">등록된 이력서가 없습니다.</p>{% endif %}</section>
       </div>
       {% endif %}
     </div>
@@ -82,5 +82,10 @@
   function setEditPanel(open) { editPanel.hidden = !open; editToggle.setAttribute('aria-expanded', String(open)); if (open) editPanel.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
   editToggle.addEventListener('click', () => setEditPanel(editPanel.hidden));
   editCancel.addEventListener('click', () => setEditPanel(false));
+  const mypageResumeInput = document.getElementById('mypage_resume_file');
+  const mypageResumeFilename = document.querySelector('.mypage-resume-filename');
+  if (mypageResumeInput) mypageResumeInput.addEventListener('change', () => {
+    mypageResumeFilename.textContent = mypageResumeInput.files.length ? `선택: ${mypageResumeInput.files[0].name}` : '';
+  });
 </script>
 {% endblock %}

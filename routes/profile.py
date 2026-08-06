@@ -1,11 +1,58 @@
 import os
+import uuid
 
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_from_directory, session, url_for
+from sqlalchemy.exc import SQLAlchemyError
+from werkzeug.utils import secure_filename
 
 from extensions import db
 from models import Application, Job, Resume, Scrap, User
 
 profile_bp = Blueprint("profile", __name__)
+ALLOWED_RESUME_EXTENSIONS = {"pdf", "doc", "docx"}
+
+
+@profile_bp.post("/mypage/resumes/upload")
+def resume_upload():
+    user_id = session.get("user_id")
+    user = db.session.get(User, user_id) if user_id else None
+    if not user:
+        flash("로그인 후 이용해 주세요.", "error")
+        return redirect(url_for("auth.login"))
+    if user.role != "jobseeker":
+        abort(403)
+
+    uploaded_file = request.files.get("resume_file")
+    original_name = secure_filename(uploaded_file.filename) if uploaded_file and uploaded_file.filename else ""
+    if not original_name or "." not in original_name:
+        flash("등록할 이력서 파일을 선택해 주세요.", "error")
+        return redirect(url_for("profile.mypage"))
+
+    extension = original_name.rsplit(".", 1)[1].lower()
+    if extension not in ALLOWED_RESUME_EXTENSIONS:
+        flash("이력서는 PDF, DOC, DOCX 파일만 등록할 수 있습니다.", "error")
+        return redirect(url_for("profile.mypage"))
+
+    stored_filename = f"{uuid.uuid4().hex}.{extension}"
+    saved_path = os.path.join(current_app.config["UPLOAD_FOLDER"], stored_filename)
+    uploaded_file.save(saved_path)
+    db.session.add(
+        Resume(
+            user_id=user.user_id,
+            file_path=stored_filename,
+            original_filename=original_name,
+        )
+    )
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        if os.path.isfile(saved_path):
+            os.remove(saved_path)
+        flash("이력서를 등록하지 못했습니다. 잠시 후 다시 시도해 주세요.", "error")
+    else:
+        flash("새 이력서가 등록되었습니다.", "success")
+    return redirect(url_for("profile.mypage"))
 
 
 @profile_bp.route("/mypage/resumes/<int:resume_id>/preview")
