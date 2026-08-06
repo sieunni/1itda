@@ -1,9 +1,41 @@
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+import os
+
+from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_from_directory, session, url_for
 
 from extensions import db
 from models import Application, Job, Resume, Scrap, User
 
 profile_bp = Blueprint("profile", __name__)
+
+
+@profile_bp.route("/mypage/resumes/<int:resume_id>/preview")
+def resume_preview(resume_id):
+    user_id = session.get("user_id")
+    if not user_id:
+        flash("로그인 후 이용해 주세요.", "error")
+        return redirect(url_for("auth.login"))
+
+    resume = Resume.query.filter_by(resume_id=resume_id, user_id=user_id).first()
+    if not resume or not resume.file_path:
+        abort(404)
+
+    stored_filename = os.path.basename(resume.file_path)
+    if stored_filename != resume.file_path:
+        abort(404)
+
+    file_path = os.path.join(current_app.config["UPLOAD_FOLDER"], stored_filename)
+    if not os.path.isfile(file_path):
+        flash("이력서 파일을 찾을 수 없습니다.", "error")
+        return redirect(url_for("profile.mypage"))
+
+    extension = stored_filename.rsplit(".", 1)[-1].lower()
+    return send_from_directory(
+        current_app.config["UPLOAD_FOLDER"],
+        stored_filename,
+        as_attachment=extension != "pdf",
+        download_name=resume.original_filename or stored_filename,
+        conditional=True,
+    )
 
 
 @profile_bp.route("/mypage", methods=["GET", "POST"])
