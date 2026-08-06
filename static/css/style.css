@@ -613,7 +613,8 @@ body {
   gap: 10px;
 }
 
-.job-card__apply {
+.job-card a.job-card__apply,
+.job-card a.job-card__apply:visited {
   padding: 8px 12px;
   color: #fff;
   background: var(--color-primary);
@@ -623,7 +624,8 @@ body {
   text-decoration: none;
 }
 
-.job-card__apply:hover {
+.job-card a.job-card__apply:hover {
+  color: #fff;
   background: var(--color-primary-dark);
 }
 
