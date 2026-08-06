@@ -1,8 +1,8 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, session
 
 from config import Config
 from extensions import csrf, db
-from models import Job
+from models import Job, User
 from routes.admin import admin_bp
 from routes.applications import applications_bp
 from routes.auth import auth_bp
@@ -24,6 +24,11 @@ def create_app():
     app.register_blueprint(applications_bp)
     app.register_blueprint(company_bp)
     app.register_blueprint(admin_bp)
+
+    @app.context_processor
+    def inject_current_user():
+        user_id = session.get("user_id")
+        return {"current_user": User.query.get(user_id) if user_id else None}
 
     @app.route("/")
     def index():

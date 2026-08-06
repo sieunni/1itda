@@ -13,14 +13,27 @@
       <ul class="nav-links">
         <li><a href="{{ url_for('jobs.job_list') }}">공고 목록</a></li>
         <li><a href="{{ url_for('company.dashboard') }}">기업</a></li>
+        {% if current_user %}
         <li><a href="{{ url_for('profile.mypage') }}">마이페이지</a></li>
+        <li><a href="{{ url_for('auth.logout') }}">로그아웃</a></li>
+        {% else %}
         <li><a href="{{ url_for('auth.login') }}">로그인</a></li>
         <li><a href="{{ url_for('auth.join') }}" class="btn-signup">회원가입</a></li>
+        {% endif %}
       </ul>
     </nav>
   </header>
 
   <main class="site-main">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+      <div class="flash-messages">
+        {% for category, message in messages %}
+        <p class="flash flash-{{ category }}">{{ message }}</p>
+        {% endfor %}
+      </div>
+      {% endif %}
+    {% endwith %}
     {% block content %}{% endblock %}
   </main>
 
