@@ -11,7 +11,7 @@
     <nav class="navbar">
       <a class="logo" href="{{ url_for('index') }}">1ITDA</a>
       <ul class="nav-links">
-        <li><a href="{{ url_for('jobs.job_list') }}">공고 목록</a></li>
+        <li><a href="{{ url_for('jobs.job_list') }}">채용공고</a></li>
         <li><a href="{{ url_for('company.dashboard') }}">기업</a></li>
         {% if current_user %}
         <li><a href="{{ url_for('profile.mypage') }}">마이페이지</a></li>

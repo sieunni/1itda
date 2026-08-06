@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}채용공고 - 1ITDA{% endblock %}
+
+{% block content %}
+<section class="jobs-page">
+  <header class="jobs-page__header">
+    <h1>채용공고</h1>
+    <p>IT 직무와 기업의 채용공고를 확인할 수 있습니다.</p>
+  </header>
+
+  <form class="jobs-search" method="get" action="{{ url_for('jobs.job_list') }}">
+    <div class="jobs-search__field jobs-search__field--wide">
+      <label for="keyword">키워드 검색</label>
+      <input
+        type="search"
+        id="keyword"
+        name="keyword"
+        value="{{ filters.keyword }}"
+        maxlength="60"
+        placeholder="공고 제목, 내용, 기업명"
+      >
+    </div>
+
+    <div class="jobs-search__field">
+      <label for="region">지역</label>
+      <select id="region" name="region">
+        <option value="">전체 지역</option>
+        {% for region in regions %}
+          <option value="{{ region }}" {% if filters.region == region %}selected{% endif %}>{{ region }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="jobs-search__field">
+      <label for="industry">업종</label>
+      <select id="industry" name="industry">
+        <option value="">전체 업종</option>
+        {% for industry in industries %}
+          <option value="{{ industry }}" {% if filters.industry == industry %}selected{% endif %}>{{ industry }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="jobs-search__actions">
+      <button type="submit" class="btn btn-primary">검색</button>
+      <a class="btn btn-outline" href="{{ url_for('jobs.job_list') }}">초기화</a>
+    </div>
+  </form>
+
+  <div class="jobs-summary" aria-live="polite">
+    <strong>{{ total }}</strong>개의 채용공고
+  </div>
+
+  {% if jobs %}
+    <div class="jobs-grid">
+      {% for job in jobs %}
+        <article class="job-card">
+          <div class="job-card__body">
+            <p class="job-card__company">{{ job.company_name }}</p>
+            <h2 class="job-card__title">
+              <a href="{{ url_for('jobs.job_detail', job_id=job.job_id) }}">{{ job.title }}</a>
+            </h2>
+
+            <dl class="job-card__meta">
+              <div>
+                <dt>지역</dt>
+                <dd>{{ job.region }}</dd>
+              </div>
+              <div>
+                <dt>업종</dt>
+                <dd>{{ job.industry }}</dd>
+              </div>
+              <div>
+                <dt>등록일</dt>
+                <dd>{{ job.created_at }}</dd>
+              </div>
+              <div>
+                <dt>마감일</dt>
+                <dd>{{ job.deadline }}</dd>
+              </div>
+            </dl>
+          </div>
+
+          <div class="job-card__footer">
+            <span class="job-card__badge {% if job.is_closed %}job-card__badge--closed{% endif %}">
+              {{ job.deadline_label }}
+            </span>
+            <a class="job-card__link" href="{{ url_for('jobs.job_detail', job_id=job.job_id) }}">상세보기</a>
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty-state">
+      {% if has_filters %}
+        검색 조건에 맞는 채용공고가 없습니다.
+      {% else %}
+        등록된 채용공고가 없습니다.
+      {% endif %}
+    </div>
+  {% endif %}
+
+  {% if total_pages > 1 %}
+    <nav class="pagination" aria-label="채용공고 페이지">
+      {% if page > 1 %}
+        <a href="{{ url_for('jobs.job_list', keyword=filters.keyword, region=filters.region, industry=filters.industry, page=page - 1) }}">이전</a>
+      {% else %}
+        <span class="pagination__disabled">이전</span>
+      {% endif %}
+
+      <span class="pagination__current">{{ page }} / {{ total_pages }}</span>
+
+      {% if page < total_pages %}
+        <a href="{{ url_for('jobs.job_list', keyword=filters.keyword, region=filters.region, industry=filters.industry, page=page + 1) }}">다음</a>
+      {% else %}
+        <span class="pagination__disabled">다음</span>
+      {% endif %}
+    </nav>
+  {% endif %}
+</section>
+{% endblock %}
