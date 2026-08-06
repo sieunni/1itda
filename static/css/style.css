@@ -723,6 +723,10 @@ body {
   gap: 10px;
 }
 
+.job-action-form {
+  margin: 0;
+}
+
 .job-action-button {
   min-height: 44px;
   padding: 11px 16px;
@@ -744,6 +748,12 @@ body {
   color: var(--color-text);
   background: #fff;
   border-color: var(--color-border);
+}
+
+.job-action-button--scrapped {
+  color: #047857;
+  background: #ecfdf5;
+  border-color: #a7f3d0;
 }
 
 .job-action-button--report {
@@ -769,6 +779,7 @@ body {
   }
 
   .jobs-search__actions .btn,
+  .job-action-form,
   .job-action-button {
     width: 100%;
   }

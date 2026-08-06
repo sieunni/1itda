@@ -1,12 +1,12 @@
 from datetime import date, datetime
 from math import ceil
 
-from flask import Blueprint, abort, render_template, request, session
+from flask import Blueprint, abort, flash, redirect, render_template, request, session, url_for
 from sqlalchemy import or_
 from sqlalchemy.orm import joinedload
 
 from extensions import db
-from models import Company, Job, User
+from models import Company, Job, Scrap, User
 
 jobs_bp = Blueprint("jobs", __name__, url_prefix="/jobs")
 
@@ -183,9 +183,10 @@ def job_detail(job_id):
         abort(404)
 
     is_preview = job.status != "approved"
+    user_id = session.get("user_id")
+    user = db.session.get(User, user_id) if user_id else None
+
     if is_preview:
-        user_id = session.get("user_id")
-        user = db.session.get(User, user_id) if user_id else None
         is_owner = bool(
             user
             and user.role == "company"
@@ -195,9 +196,49 @@ def job_detail(job_id):
         if not is_owner:
             abort(404)
 
+    is_scrapped = False
+    if not is_preview and user_id:
+        is_scrapped = (
+            Scrap.query.filter_by(user_id=user_id, job_id=job.job_id).first() is not None
+        )
+
     return render_template(
         "jobs/detail.html",
         job=_job_to_view(job),
         is_preview=is_preview,
         job_status=job.status,
+        is_scrapped=is_scrapped,
     )
+
+
+@jobs_bp.post("/<int:job_id>/scrap")
+def scrap_job(job_id):
+    job = _approved_jobs_query().filter(Job.job_id == job_id).first()
+    if job is None:
+        abort(404)
+
+    user_id = session.get("user_id")
+    if not user_id:
+        flash("로그인 후 스크랩할 수 있습니다.", "error")
+        return redirect(url_for("auth.login"))
+
+    user = db.session.get(User, user_id)
+    if user is None or not user.is_active:
+        session.clear()
+        flash("로그인 후 스크랩할 수 있습니다.", "error")
+        return redirect(url_for("auth.login"))
+
+    if user.role != "jobseeker":
+        abort(403)
+
+    existing_scrap = Scrap.query.filter_by(user_id=user.user_id, job_id=job.job_id).first()
+    if existing_scrap is None:
+        db.session.add(Scrap(user_id=user.user_id, job_id=job.job_id))
+        db.session.commit()
+        flash("공고를 스크랩했습니다. 마이페이지에서 확인할 수 있습니다.", "success")
+    else:
+        db.session.delete(existing_scrap)
+        db.session.commit()
+        flash("스크랩을 해제했습니다.", "success")
+
+    return redirect(url_for("jobs.job_detail", job_id=job.job_id))

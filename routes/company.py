@@ -104,6 +104,12 @@ def validate_job_form(form):
     }, errors
 
 
+@company_bp.route("/")
+@company_bp.route("/dashboard")
+def dashboard_alias():
+    return redirect(url_for("company.dashboard"))
+
+
 @company_bp.route("/jobs")
 @company_required
 def dashboard(company, user):

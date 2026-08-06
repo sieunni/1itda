@@ -56,7 +56,7 @@
   <div class="job-detail__actions">
     {% if is_preview %}
       {% if job_status == 'pending' %}
-      <a class="job-action-button job-action-button--primary" href="{{ url_for('company.job_edit', job_id=job.job_id) }}">공고 수정</a>
+        <a class="job-action-button job-action-button--primary" href="{{ url_for('company.job_edit', job_id=job.job_id) }}">공고 수정</a>
       {% endif %}
       <a class="job-action-button job-action-button--secondary" href="{{ url_for('company.dashboard') }}">공고 관리로 이동</a>
     {% elif job.is_closed %}
@@ -76,26 +76,51 @@
     {% endif %}
 
     {% if not is_preview %}
-    <button
-      type="button"
-      class="job-action-button job-action-button--secondary"
-      disabled
-      aria-disabled="true"
-      title="스크랩 기능은 추후 연결 예정입니다."
-    >
-      스크랩
-    </button>
+      {% if is_scrapped %}
+        <form class="job-action-form" method="post" action="{{ url_for('jobs.scrap_job', job_id=job.job_id) }}">
+          {% if csrf_token is defined %}
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          {% endif %}
+          <button
+            type="submit"
+            class="job-action-button job-action-button--secondary job-action-button--scrapped"
+            aria-pressed="true"
+            title="스크랩을 해제합니다."
+          >
+            스크랩 해제
+          </button>
+        </form>
+      {% elif current_user and current_user.role != "jobseeker" %}
+        <button
+          type="button"
+          class="job-action-button job-action-button--secondary"
+          disabled
+          aria-disabled="true"
+          title="구직자 계정만 스크랩할 수 있습니다."
+        >
+          스크랩
+        </button>
+      {% else %}
+        <form class="job-action-form" method="post" action="{{ url_for('jobs.scrap_job', job_id=job.job_id) }}">
+          {% if csrf_token is defined %}
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          {% endif %}
+          <button type="submit" class="job-action-button job-action-button--secondary">
+            스크랩
+          </button>
+        </form>
+      {% endif %}
 
-    <!-- TODO: 신고 등록 endpoint와 CSRF 보호 구현 후 공고 신고 기능 연결 -->
-    <button
-      type="button"
-      class="job-action-button job-action-button--report"
-      disabled
-      aria-disabled="true"
-      title="신고 기능은 추후 연결 예정입니다."
-    >
-      공고 신고
-    </button>
+      <!-- TODO: 신고 등록 endpoint와 CSRF 보호 구현 후 공고 신고 기능 연결 -->
+      <button
+        type="button"
+        class="job-action-button job-action-button--report"
+        disabled
+        aria-disabled="true"
+        title="신고 기능은 추후 연결 예정입니다."
+      >
+        공고 신고
+      </button>
     {% endif %}
   </div>
 </article>
