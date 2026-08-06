@@ -4,6 +4,7 @@ from datetime import date
 
 from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import joinedload
 from werkzeug.utils import secure_filename
 
 from extensions import db
@@ -121,4 +122,29 @@ def my_applications():
     if not user:
         flash("로그인 후 이용해 주세요.", "error")
         return redirect(url_for("auth.login"))
-    return redirect(url_for("profile.mypage"))
+    if user.role != "jobseeker":
+        flash("구직자 계정에서만 지원 내역을 확인할 수 있습니다.", "error")
+        return redirect(url_for("profile.mypage"))
+
+    status_filter = request.args.get("status", "")
+    allowed_statuses = {"submitted", "accepted", "rejected", "cancelled"}
+    if status_filter not in allowed_statuses:
+        status_filter = ""
+
+    base_query = Application.query.filter_by(user_id=user.user_id)
+    status_counts = {
+        status: base_query.filter_by(status=status).count()
+        for status in allowed_statuses
+    }
+    query = base_query.options(joinedload(Application.job).joinedload(Job.company))
+    if status_filter:
+        query = query.filter_by(status=status_filter)
+
+    applications = query.order_by(Application.applied_at.desc()).all()
+    return render_template(
+        "applications/list.html",
+        applications=applications,
+        status_filter=status_filter,
+        status_counts=status_counts,
+        total=base_query.count(),
+    )

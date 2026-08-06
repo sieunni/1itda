@@ -1092,3 +1092,46 @@ a.stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(15,
   .apply-actions { display: grid; grid-template-columns: 1fr 1.4fr; }
   .apply-actions .btn { text-align: center; }
 }
+
+/* 지원 내역 */
+
+.application-history { display: flex; flex-direction: column; gap: 22px; }
+.application-history__header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
+.application-history__header span { color: var(--color-primary); font-size: .74rem; font-weight: 800; letter-spacing: .14em; }
+.application-history__header h1 { margin: 7px 0; font-size: 2rem; }
+.application-history__header p { margin: 0; color: var(--color-muted); }
+.application-history__header .btn { flex: 0 0 auto; background: #fff; }
+.application-filters { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+.application-filters a { display: flex; align-items: center; gap: 7px; flex: 0 0 auto; padding: 9px 13px; color: #4b5563; background: #fff; border: 1px solid var(--color-border); border-radius: 999px; font-size: .82rem; text-decoration: none; }
+.application-filters a.active { color: #fff; background: var(--color-primary); border-color: var(--color-primary); font-weight: 700; }
+.application-filters strong { display: grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; color: inherit; background: rgba(148, 163, 184, .16); border-radius: 999px; font-size: .72rem; }
+.application-filters a.active strong { background: rgba(255, 255, 255, .2); }
+.application-history__list { display: flex; flex-direction: column; gap: 12px; }
+.application-history__item { display: flex; align-items: center; justify-content: space-between; gap: 28px; padding: 24px; background: #fff; border: 1px solid var(--color-border); border-radius: 14px; transition: border-color .15s, box-shadow .15s; }
+.application-history__item:hover { border-color: #bfdbfe; box-shadow: 0 6px 18px rgba(15, 23, 42, .05); }
+.application-history__main { min-width: 0; flex: 1; }
+.application-history__topline { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.application-history__topline time { color: var(--color-muted); font-size: .76rem; }
+.application-history__company { margin: 0 0 5px; color: var(--color-primary); font-size: .82rem; font-weight: 700; }
+.application-history__item h2 { margin: 0; font-size: 1.08rem; overflow-wrap: anywhere; }
+.application-history__meta { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 16px 0 0; }
+.application-history__meta div { display: flex; gap: 7px; min-width: 0; }
+.application-history__meta dt, .application-history__meta dd { margin: 0; font-size: .78rem; }
+.application-history__meta dt { color: #9ca3af; }
+.application-history__meta dd { max-width: 220px; color: #4b5563; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.application-history__actions { flex: 0 0 auto; }
+.application-history__actions .btn { background: #fff; white-space: nowrap; }
+.application-unavailable { color: var(--color-muted); font-size: .78rem; }
+.application-history__empty { padding: 64px 24px; background: #fff; border: 1px solid var(--color-border); border-radius: 14px; text-align: center; }
+.application-history__empty > span { color: #93c5fd; font-size: 2.2rem; }
+.application-history__empty h2 { margin: 12px 0 7px; font-size: 1.08rem; }
+.application-history__empty p { margin: 0 0 20px; color: var(--color-muted); font-size: .86rem; }
+
+@media (max-width: 700px) {
+  .application-history__header { align-items: flex-start; flex-direction: column; }
+  .application-history__header h1 { font-size: 1.6rem; }
+  .application-history__item { align-items: stretch; flex-direction: column; gap: 18px; }
+  .application-history__actions .btn { display: block; width: 100%; text-align: center; }
+  .application-history__meta { flex-direction: column; }
+  .application-history__meta dd { max-width: calc(100vw - 150px); }
+}

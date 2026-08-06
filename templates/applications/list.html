@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}지원 내역 - 1ITDA{% endblock %}
+
+{% block content %}
+<section class="application-history">
+  <header class="application-history__header">
+    <div>
+      <span>MY APPLICATIONS</span>
+      <h1>지원 내역</h1>
+      <p>지원한 채용공고와 현재 진행 상태를 확인할 수 있습니다.</p>
+    </div>
+    <a class="btn btn-outline" href="{{ url_for('profile.mypage') }}">마이페이지로</a>
+  </header>
+
+  <nav class="application-filters" aria-label="지원 상태 필터">
+    <a class="{% if not status_filter %}active{% endif %}" href="{{ url_for('applications.my_applications') }}">
+      전체 <strong>{{ total }}</strong>
+    </a>
+    <a class="{% if status_filter == 'submitted' %}active{% endif %}" href="{{ url_for('applications.my_applications', status='submitted') }}">
+      지원 완료 <strong>{{ status_counts.submitted }}</strong>
+    </a>
+    <a class="{% if status_filter == 'accepted' %}active{% endif %}" href="{{ url_for('applications.my_applications', status='accepted') }}">
+      합격 <strong>{{ status_counts.accepted }}</strong>
+    </a>
+    <a class="{% if status_filter == 'rejected' %}active{% endif %}" href="{{ url_for('applications.my_applications', status='rejected') }}">
+      불합격 <strong>{{ status_counts.rejected }}</strong>
+    </a>
+    <a class="{% if status_filter == 'cancelled' %}active{% endif %}" href="{{ url_for('applications.my_applications', status='cancelled') }}">
+      지원 취소 <strong>{{ status_counts.cancelled }}</strong>
+    </a>
+  </nav>
+
+  {% if applications %}
+  <div class="application-history__list">
+    {% for application in applications %}
+    <article class="application-history__item">
+      <div class="application-history__main">
+        <div class="application-history__topline">
+          <span class="status status-{{ application.status }}">
+            {{ {'submitted':'지원 완료', 'accepted':'합격', 'rejected':'불합격', 'cancelled':'지원 취소'}.get(application.status, application.status) }}
+          </span>
+          <time datetime="{{ application.applied_at.strftime('%Y-%m-%d') }}">{{ application.applied_at.strftime('%Y.%m.%d') }} 지원</time>
+        </div>
+        <p class="application-history__company">{{ application.job.company.company_name if application.job and application.job.company else '기업명 미정' }}</p>
+        <h2>{{ application.job.title if application.job else '삭제된 공고' }}</h2>
+        <dl class="application-history__meta">
+          <div><dt>지역</dt><dd>{{ application.job.region or '지역 미정' if application.job else '-' }}</dd></div>
+          <div><dt>직무</dt><dd>{{ application.job.industry or '업종 미정' if application.job else '-' }}</dd></div>
+          <div><dt>제출 이력서</dt><dd>{{ application.resume_snapshot or '이력서 정보 없음' }}</dd></div>
+        </dl>
+      </div>
+      <div class="application-history__actions">
+        {% if application.job and application.job.status == 'approved' %}
+        <a class="btn btn-outline" href="{{ url_for('jobs.job_detail', job_id=application.job_id) }}">공고 보기</a>
+        {% else %}
+        <span class="application-unavailable">현재 비공개 공고</span>
+        {% endif %}
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="application-history__empty">
+    <span aria-hidden="true">⌁</span>
+    {% if status_filter %}
+    <h2>해당 상태의 지원 내역이 없습니다.</h2>
+    <p>다른 상태를 선택해 전체 지원 내역을 확인해 보세요.</p>
+    {% else %}
+    <h2>아직 지원한 공고가 없습니다.</h2>
+    <p>관심 있는 공고를 찾아 첫 지원을 시작해 보세요.</p>
+    <a class="btn btn-primary" href="{{ url_for('jobs.job_list') }}">채용공고 둘러보기</a>
+    {% endif %}
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
