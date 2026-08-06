@@ -1,4 +1,5 @@
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from sqlalchemy.orm import joinedload
 
 from extensions import db
 from models import Application, Job, Resume, Scrap, User
@@ -91,3 +92,29 @@ def mypage():
         scraps=scraps,
         resumes=resumes,
     )
+
+
+@profile_bp.route("/mypage/scraps")
+def my_scraps():
+    user_id = session.get("user_id")
+    if not user_id:
+        flash("로그인 후 이용해 주세요.", "error")
+        return redirect(url_for("auth.login"))
+
+    user = db.session.get(User, user_id)
+    if not user or not user.is_active:
+        session.clear()
+        flash("사용자 정보를 확인할 수 없습니다.", "error")
+        return redirect(url_for("auth.login"))
+
+    if user.role != "jobseeker":
+        flash("구직자 계정에서만 스크랩 목록을 확인할 수 있습니다.", "error")
+        return redirect(url_for("profile.mypage"))
+
+    scraps = (
+        Scrap.query.filter_by(user_id=user.user_id)
+        .options(joinedload(Scrap.job).joinedload(Job.company))
+        .order_by(Scrap.created_at.desc())
+        .all()
+    )
+    return render_template("profile/scraps.html", scraps=scraps)

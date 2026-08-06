@@ -37,7 +37,7 @@
         <a href="{{ url_for('company.applicants') }}" class="stat-card"><span>지원자</span><strong>{{ stats.applicants }}</strong><small>누적 지원</small></a>
         {% else %}
         <a href="{{ url_for('applications.my_applications') }}" class="stat-card"><span>지원 내역</span><strong>{{ stats.applications }}</strong><small>누적 지원</small></a>
-        <div class="stat-card"><span>스크랩</span><strong>{{ stats.scraps }}</strong><small>관심 공고</small></div>
+        <a href="{{ url_for('profile.my_scraps') }}" class="stat-card"><span>스크랩</span><strong>{{ stats.scraps }}</strong><small>관심 공고</small></a>
         <div class="stat-card"><span>이력서</span><strong>{{ stats.resumes }}</strong><small>등록 문서</small></div>
         {% endif %}
       </section>
@@ -67,7 +67,7 @@
       </section>
 
       <div class="mypage-subgrid">
-        <section class="mypage-panel compact-panel"><div class="panel-heading"><div><h2>스크랩 공고</h2><p>관심 있는 채용공고</p></div></div>{% if scraps %}<ul class="mini-list">{% for scrap in scraps %}<li><a href="{{ url_for('jobs.job_detail', job_id=scrap.job_id) }}"><strong>{{ scrap.job.title }}</strong><span>{{ scrap.job.company.company_name if scrap.job.company else '' }}</span></a></li>{% endfor %}</ul>{% else %}<p class="compact-empty">스크랩한 공고가 없습니다.</p>{% endif %}</section>
+        <section class="mypage-panel compact-panel"><div class="panel-heading"><div><h2>스크랩 공고</h2><p>관심 있는 채용공고</p></div><a href="{{ url_for('profile.my_scraps') }}">전체보기</a></div>{% if scraps %}<ul class="mini-list">{% for scrap in scraps %}<li><a href="{{ url_for('jobs.job_detail', job_id=scrap.job_id) }}"><strong>{{ scrap.job.title }}</strong><span>{{ scrap.job.company.company_name if scrap.job.company else '' }}</span></a></li>{% endfor %}</ul>{% else %}<p class="compact-empty">스크랩한 공고가 없습니다.</p>{% endif %}</section>
         <section class="mypage-panel compact-panel"><div class="panel-heading"><div><h2>내 이력서</h2><p>등록한 이력서 파일</p></div></div>{% if resumes %}<ul class="mini-list">{% for resume in resumes %}<li><div><strong>{{ resume.original_filename or '이력서' }}</strong><span>{{ resume.uploaded_at.strftime('%Y.%m.%d') }} 등록</span></div></li>{% endfor %}</ul>{% else %}<p class="compact-empty">등록된 이력서가 없습니다.</p>{% endif %}</section>
       </div>
       {% endif %}

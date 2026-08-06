@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}스크랩 공고 - 1ITDA{% endblock %}
+
+{% block content %}
+<section class="scrap-history">
+  <header class="scrap-history__header">
+    <div>
+      <span>MY SCRAPS</span>
+      <h1>스크랩 공고</h1>
+      <p>관심 있어 저장해 둔 채용공고를 확인하고 정리할 수 있습니다.</p>
+    </div>
+    <a class="btn btn-outline" href="{{ url_for('profile.mypage') }}">마이페이지로</a>
+  </header>
+
+  {% if scraps %}
+  <div class="scrap-history__list">
+    {% for scrap in scraps %}
+    <article class="scrap-history__item">
+      <div class="scrap-history__main">
+        <p class="scrap-history__company">{{ scrap.job.company.company_name if scrap.job and scrap.job.company else '기업명 미정' }}</p>
+        {% if scrap.job %}
+        <h2><a href="{{ url_for('jobs.job_detail', job_id=scrap.job_id) }}">{{ scrap.job.title }}</a></h2>
+        {% else %}
+        <h2>삭제된 공고</h2>
+        {% endif %}
+        <dl class="scrap-history__meta">
+          <div><dt>지역</dt><dd>{{ scrap.job.region or '지역 미정' if scrap.job else '-' }}</dd></div>
+          <div><dt>업종</dt><dd>{{ scrap.job.industry or '업종 미정' if scrap.job else '-' }}</dd></div>
+          <div><dt>스크랩일</dt><dd>{{ scrap.created_at.strftime('%Y.%m.%d') if scrap.created_at else '-' }}</dd></div>
+        </dl>
+      </div>
+      <div class="scrap-history__actions">
+        {% if scrap.job and scrap.job.status == 'approved' %}
+        <a class="btn btn-outline" href="{{ url_for('jobs.job_detail', job_id=scrap.job_id) }}">공고 보기</a>
+        {% else %}
+        <span class="scrap-unavailable">현재 비공개 공고</span>
+        {% endif %}
+        {% if scrap.job %}
+        <form method="post" action="{{ url_for('jobs.scrap_job', job_id=scrap.job_id) }}">
+          {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+          <button type="submit" class="btn btn-outline" onclick="return confirm('스크랩을 삭제하시겠습니까?')">삭제</button>
+        </form>
+        {% endif %}
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="scrap-history__empty">
+    <span aria-hidden="true">☆</span>
+    <h2>스크랩한 공고가 없습니다.</h2>
+    <p>관심 있는 공고를 찾아 스크랩해 보세요.</p>
+    <a class="btn btn-primary" href="{{ url_for('jobs.job_list') }}">채용공고 둘러보기</a>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

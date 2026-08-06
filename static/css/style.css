@@ -1135,3 +1135,43 @@ a.stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(15,
   .application-history__meta { flex-direction: column; }
   .application-history__meta dd { max-width: calc(100vw - 150px); }
 }
+
+/* 스크랩 목록 */
+
+.scrap-history { display: flex; flex-direction: column; gap: 22px; }
+.scrap-history__header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
+.scrap-history__header span { color: var(--color-primary); font-size: .74rem; font-weight: 800; letter-spacing: .14em; }
+.scrap-history__header h1 { margin: 7px 0; font-size: 2rem; }
+.scrap-history__header p { margin: 0; color: var(--color-muted); }
+.scrap-history__header .btn { flex: 0 0 auto; background: #fff; }
+.scrap-history__list { display: flex; flex-direction: column; gap: 12px; }
+.scrap-history__item { display: flex; align-items: center; justify-content: space-between; gap: 28px; padding: 24px; background: #fff; border: 1px solid var(--color-border); border-radius: 14px; transition: border-color .15s, box-shadow .15s; }
+.scrap-history__item:hover { border-color: #bfdbfe; box-shadow: 0 6px 18px rgba(15, 23, 42, .05); }
+.scrap-history__main { min-width: 0; flex: 1; }
+.scrap-history__company { margin: 0 0 5px; color: var(--color-primary); font-size: .82rem; font-weight: 700; }
+.scrap-history__item h2 { margin: 0; font-size: 1.08rem; overflow-wrap: anywhere; }
+.scrap-history__item h2 a { color: inherit; text-decoration: none; }
+.scrap-history__item h2 a:hover { color: var(--color-primary); }
+.scrap-history__meta { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 16px 0 0; }
+.scrap-history__meta div { display: flex; gap: 7px; min-width: 0; }
+.scrap-history__meta dt, .scrap-history__meta dd { margin: 0; font-size: .78rem; }
+.scrap-history__meta dt { color: #9ca3af; }
+.scrap-history__meta dd { max-width: 220px; color: #4b5563; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scrap-history__actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.scrap-history__actions form { margin: 0; }
+.scrap-history__actions .btn { background: #fff; white-space: nowrap; cursor: pointer; }
+.scrap-unavailable { color: var(--color-muted); font-size: .78rem; }
+.scrap-history__empty { padding: 64px 24px; background: #fff; border: 1px solid var(--color-border); border-radius: 14px; text-align: center; }
+.scrap-history__empty > span { color: #93c5fd; font-size: 2.2rem; }
+.scrap-history__empty h2 { margin: 12px 0 7px; font-size: 1.08rem; }
+.scrap-history__empty p { margin: 0 0 20px; color: var(--color-muted); font-size: .86rem; }
+
+@media (max-width: 700px) {
+  .scrap-history__header { align-items: flex-start; flex-direction: column; }
+  .scrap-history__header h1 { font-size: 1.6rem; }
+  .scrap-history__item { align-items: stretch; flex-direction: column; gap: 18px; }
+  .scrap-history__actions { flex-direction: column; align-items: stretch; }
+  .scrap-history__actions .btn { display: block; width: 100%; text-align: center; }
+  .scrap-history__meta { flex-direction: column; }
+  .scrap-history__meta dd { max-width: calc(100vw - 150px); }
+}
