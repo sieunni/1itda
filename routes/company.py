@@ -1,7 +1,8 @@
+import os
 from datetime import date, datetime
 from functools import wraps
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_from_directory, session, url_for
 from sqlalchemy.exc import SQLAlchemyError
 
 from extensions import db
@@ -241,6 +242,33 @@ def applicant_detail(company, user, application_id):
         application=application,
         applicant=applicant,
         resume=resume,
+    )
+
+
+@company_bp.route("/applicants/<int:application_id>/resume")
+@company_required
+def applicant_resume(company, user, application_id):
+    application = owned_application_or_404(company, application_id)
+    resume = db.session.get(Resume, application.resume_id) if application.resume_id else None
+    if not resume or not resume.file_path:
+        abort(404)
+
+    stored_filename = os.path.basename(resume.file_path)
+    if stored_filename != resume.file_path:
+        abort(404)
+
+    file_path = os.path.join(current_app.config["UPLOAD_FOLDER"], stored_filename)
+    if not os.path.isfile(file_path):
+        flash("제출된 이력서 파일을 찾을 수 없습니다.", "error")
+        return redirect(url_for("company.applicant_detail", application_id=application.application_id))
+
+    extension = stored_filename.rsplit(".", 1)[-1].lower()
+    return send_from_directory(
+        current_app.config["UPLOAD_FOLDER"],
+        stored_filename,
+        as_attachment=extension != "pdf",
+        download_name=resume.original_filename or stored_filename,
+        conditional=True,
     )
 
 

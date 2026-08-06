@@ -836,6 +836,15 @@ body {
 .company-panel dt { color: var(--color-muted); }
 .company-panel dd { margin: 0; }
 .company-resume pre { overflow-x: auto; margin-bottom: 0; padding: 18px; white-space: pre-wrap; overflow-wrap: anywhere; background: #f8fafc; border-radius: 8px; font-family: inherit; }
+.company-resume-header { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 18px; }
+.company-resume-header h2, .company-resume-header p { margin: 0; }
+.company-resume-header p { margin-top: 5px; }
+.company-resume-header .btn { flex: 0 0 auto; color: #fff; }
+.company-resume-file { display: flex; align-items: center; gap: 13px; padding: 16px; background: #f8fafc; border: 1px solid var(--color-border); border-radius: 10px; }
+.company-resume-file > span { display: grid; flex: 0 0 44px; place-items: center; height: 46px; color: var(--color-primary-dark); background: #dbeafe; border-radius: 9px; font-size: .67rem; font-weight: 800; }
+.company-resume-file > div { display: flex; min-width: 0; flex-direction: column; gap: 5px; }
+.company-resume-file strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.company-resume-file small { color: var(--color-muted); }
 .company-help { color: var(--color-muted); font-size: 0.88rem; }
 .company-messages { display: flex; flex-direction: column; gap: 8px; }
 .company-message { margin: 0; padding: 12px 16px; border-radius: 8px; }
@@ -846,6 +855,8 @@ body {
   .company-page-header { align-items: flex-start; flex-direction: column; }
   .company-form-row, .company-detail-grid { grid-template-columns: 1fr; }
   .company-filter { align-items: stretch; flex-direction: column; }
+  .company-resume-header { align-items: stretch; flex-direction: column; }
+  .company-resume-header .btn { text-align: center; }
 }
 
 /* 관리자 페이지 */

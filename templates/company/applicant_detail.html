@@ -9,6 +9,13 @@
     <article class="company-panel"><h2>지원자 정보</h2><dl><dt>이름</dt><dd>{{ applicant.name if applicant and applicant.name else '이름 미등록' }}</dd><dt>이메일</dt><dd>{{ applicant.email if applicant else '확인할 수 없음' }}</dd><dt>지원일</dt><dd>{{ application.applied_at.strftime('%Y-%m-%d %H:%M') }}</dd></dl></article>
     <article class="company-panel"><h2>지원 상태</h2><form class="company-status-form" method="post" action="{{ url_for('company.applicant_status', application_id=application.application_id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><select name="status" {% if application.status == 'cancelled' %}disabled{% endif %}><option value="submitted" {% if application.status == 'submitted' %}selected{% endif %}>검토 중</option><option value="accepted" {% if application.status == 'accepted' %}selected{% endif %}>합격</option><option value="rejected" {% if application.status == 'rejected' %}selected{% endif %}>불합격</option></select><button class="btn btn-primary" type="submit" {% if application.status == 'cancelled' %}disabled{% endif %}>상태 변경</button></form>{% if application.status == 'cancelled' %}<p class="company-help">지원자가 취소한 지원서는 변경할 수 없습니다.</p>{% endif %}</article>
   </div>
-  <article class="company-panel company-resume"><h2>제출 이력서</h2>{% if application.resume_snapshot %}<pre>{{ application.resume_snapshot }}</pre>{% elif resume %}<p>제출 파일: {{ resume.original_filename or '파일명 없음' }}</p><p class="company-help">파일 다운로드는 현재 지원하지 않습니다.</p>{% else %}<p class="company-help">확인할 수 있는 이력서가 없습니다.</p>{% endif %}</article>
+  <article class="company-panel company-resume">
+    <div class="company-resume-header"><div><h2>제출 이력서</h2><p class="company-help">지원자가 이 공고에 제출한 파일입니다.</p></div>{% if resume %}<a class="btn btn-primary" href="{{ url_for('company.applicant_resume', application_id=application.application_id) }}" target="_blank" rel="noopener">{{ '이력서 열기' if (resume.original_filename or '').lower().endswith('.pdf') else '이력서 다운로드' }}</a>{% endif %}</div>
+    {% if resume %}
+    <div class="company-resume-file"><span>{{ 'PDF' if (resume.original_filename or '').lower().endswith('.pdf') else 'DOC' }}</span><div><strong>{{ application.resume_snapshot or resume.original_filename or '제출 이력서' }}</strong><small>{{ '새 탭에서 미리보기' if (resume.original_filename or '').lower().endswith('.pdf') else '파일로 다운로드' }}</small></div></div>
+    {% else %}
+    <p class="company-help">확인할 수 있는 이력서가 없습니다.</p>
+    {% endif %}
+  </article>
 </section>
 {% endblock %}
