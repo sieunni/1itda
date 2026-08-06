@@ -6,7 +6,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import joinedload
 
 from extensions import db
-from models import Company, Job, Scrap, User
+from models import Company, Job, Report, Scrap, User
 
 jobs_bp = Blueprint("jobs", __name__, url_prefix="/jobs")
 
@@ -197,9 +197,18 @@ def job_detail(job_id):
             abort(404)
 
     is_scrapped = False
+    is_reported = False
     if not is_preview and user_id:
         is_scrapped = (
             Scrap.query.filter_by(user_id=user_id, job_id=job.job_id).first() is not None
+        )
+        is_reported = (
+            Report.query.filter_by(
+                reporter_id=user_id,
+                target_type="job",
+                target_id=job.job_id,
+            ).first()
+            is not None
         )
 
     return render_template(
@@ -208,6 +217,7 @@ def job_detail(job_id):
         is_preview=is_preview,
         job_status=job.status,
         is_scrapped=is_scrapped,
+        is_reported=is_reported,
     )
 
 
@@ -241,4 +251,42 @@ def scrap_job(job_id):
         db.session.commit()
         flash("스크랩을 해제했습니다.", "success")
 
+    return redirect(url_for("jobs.job_detail", job_id=job.job_id))
+
+
+@jobs_bp.post("/<int:job_id>/report")
+def report_job(job_id):
+    job = _approved_jobs_query().filter(Job.job_id == job_id).first()
+    if job is None:
+        abort(404)
+
+    user_id = session.get("user_id")
+    if not user_id:
+        flash("로그인이 필요한 기능입니다.", "error")
+        return redirect(url_for("auth.login"))
+
+    user = db.session.get(User, user_id)
+    if user is None or not user.is_active:
+        session.clear()
+        flash("로그인이 필요한 기능입니다.", "error")
+        return redirect(url_for("auth.login"))
+
+    existing_report = Report.query.filter_by(
+        reporter_id=user.user_id,
+        target_type="job",
+        target_id=job.job_id,
+    ).first()
+    if existing_report is not None:
+        flash("이미 신고한 공고입니다. 관리자가 확인할 예정입니다.", "info")
+        return redirect(url_for("jobs.job_detail", job_id=job.job_id))
+
+    db.session.add(
+        Report(
+            reporter_id=user.user_id,
+            target_type="job",
+            target_id=job.job_id,
+        )
+    )
+    db.session.commit()
+    flash("공고 신고가 접수되었습니다. 관리자가 확인할 예정입니다.", "success")
     return redirect(url_for("jobs.job_detail", job_id=job.job_id))

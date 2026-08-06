@@ -111,16 +111,30 @@
         </form>
       {% endif %}
 
-      <!-- TODO: 신고 등록 endpoint와 CSRF 보호 구현 후 공고 신고 기능 연결 -->
-      <button
-        type="button"
-        class="job-action-button job-action-button--report"
-        disabled
-        aria-disabled="true"
-        title="신고 기능은 추후 연결 예정입니다."
-      >
-        공고 신고
-      </button>
+      {% if is_reported %}
+        <button
+          type="button"
+          class="job-action-button job-action-button--report job-action-button--reported"
+          disabled
+          aria-disabled="true"
+          title="이미 신고한 공고입니다."
+        >
+          신고 완료
+        </button>
+      {% else %}
+        <form class="job-action-form" method="post" action="{{ url_for('jobs.report_job', job_id=job.job_id) }}">
+          {% if csrf_token is defined %}
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          {% endif %}
+          <button
+            type="submit"
+            class="job-action-button job-action-button--report"
+            title="관리자에게 공고를 신고합니다."
+          >
+            공고 신고
+          </button>
+        </form>
+      {% endif %}
     {% endif %}
   </div>
 </article>

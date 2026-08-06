@@ -25,7 +25,7 @@
   {% if reports %}
   <div class="admin-table-wrap">
     <table class="admin-table">
-      <thead><tr><th>대상</th><th>신고자</th><th>사유</th><th>신고일</th><th>상태</th><th>관리</th></tr></thead>
+      <thead><tr><th>대상</th><th>신고자</th><th>신고일</th><th>상태</th><th>관리</th></tr></thead>
       <tbody>
       {% for report in reports %}
         <tr>
@@ -42,7 +42,6 @@
             {% endif %}
           </td>
           <td>{{ reporters.get(report.reporter_id).email if reporters.get(report.reporter_id) else "-" }}</td>
-          <td>{{ report.reason or "-" }}</td>
           <td>{{ report.created_at.strftime('%Y-%m-%d') if report.created_at else '-' }}</td>
           <td><span class="status-badge {{ 'status-approved' if report.status == 'reviewed' else 'status-blocked' if report.status == 'rejected' else 'status-pending' }}">{{ status_labels.get(report.status, report.status) }}</span></td>
           <td class="admin-actions">
