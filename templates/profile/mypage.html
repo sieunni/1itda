@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}마이페이지 - 1ITDA{% endblock %}
+
+{% block content %}
+<section class="mypage">
+  <div class="mypage-heading">
+    <div>
+      <span class="mypage-eyebrow">MY 1ITDA</span>
+      <h1>{{ user.name or '회원' }}님, 반가워요!</h1>
+      <p>{% if user.role == 'company' %}채용 현황과 기업 정보를 한눈에 관리하세요.{% else %}나의 취업 활동을 한눈에 확인하세요.{% endif %}</p>
+    </div>
+    <span class="account-chip">{{ '기업회원' if user.role == 'company' else '구직자' }}</span>
+  </div>
+
+  <div class="mypage-layout">
+    <aside class="profile-card">
+      <div class="profile-avatar" aria-hidden="true">{{ (user.name or '1')[0] }}</div>
+      <h2>{{ user.name or '이름 미등록' }}</h2>
+      <p>{{ user.email }}</p>
+      {% if user.role == 'company' and user.company %}
+      <span class="company-name">{{ user.company.company_name }}</span>
+      {% endif %}
+
+      <dl class="account-meta">
+        <div><dt>회원 유형</dt><dd>{{ '기업회원' if user.role == 'company' else '구직자' }}</dd></div>
+        <div><dt>가입일</dt><dd>{{ user.created_at.strftime('%Y.%m.%d') }}</dd></div>
+      </dl>
+      <button class="btn btn-outline profile-edit-toggle" type="button" aria-expanded="false">기본정보 수정</button>
+    </aside>
+
+    <div class="mypage-content">
+      <section class="mypage-stats" aria-label="활동 요약">
+        {% if user.role == 'company' %}
+        <a href="{{ url_for('company.dashboard') }}" class="stat-card"><span>등록 공고</span><strong>{{ stats.jobs }}</strong><small>전체 공고</small></a>
+        <a href="{{ url_for('company.dashboard') }}" class="stat-card"><span>진행 공고</span><strong>{{ stats.open_jobs }}</strong><small>승인·게시 중</small></a>
+        <a href="{{ url_for('company.applicants') }}" class="stat-card"><span>지원자</span><strong>{{ stats.applicants }}</strong><small>누적 지원</small></a>
+        {% else %}
+        <a href="{{ url_for('applications.my_applications') }}" class="stat-card"><span>지원 내역</span><strong>{{ stats.applications }}</strong><small>누적 지원</small></a>
+        <div class="stat-card"><span>스크랩</span><strong>{{ stats.scraps }}</strong><small>관심 공고</small></div>
+        <div class="stat-card"><span>이력서</span><strong>{{ stats.resumes }}</strong><small>등록 문서</small></div>
+        {% endif %}
+      </section>
+
+      <section class="mypage-panel edit-panel" hidden>
+        <div class="panel-heading"><div><h2>기본정보 수정</h2><p>계정에 표시되는 정보를 변경합니다.</p></div></div>
+        <form method="post" action="{{ url_for('profile.mypage') }}" class="profile-form">
+          {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+          <div class="form-group"><label for="name">이름 또는 담당자명</label><input id="name" name="name" value="{{ user.name or '' }}" maxlength="80" required></div>
+          <div class="form-group"><label for="email">이메일</label><input type="email" id="email" name="email" value="{{ user.email }}" maxlength="120" required></div>
+          {% if user.role == 'company' %}<div class="form-group"><label for="company_name">회사명</label><input id="company_name" name="company_name" value="{{ user.company.company_name if user.company else '' }}" maxlength="120" required></div>{% endif %}
+          <div class="profile-form-actions"><button class="btn btn-primary" type="submit">저장하기</button><button class="btn btn-outline edit-cancel" type="button">취소</button></div>
+        </form>
+      </section>
+
+      {% if user.role == 'company' %}
+      <section class="mypage-panel">
+        <div class="panel-heading"><div><h2>최근 등록 공고</h2><p>최근 등록한 공고를 확인해 보세요.</p></div><a href="{{ url_for('company.job_new') }}">새 공고 등록</a></div>
+        {% if jobs %}<ul class="activity-list">{% for job in jobs %}<li><a href="{{ url_for('jobs.job_detail', job_id=job.job_id) }}"><div><strong>{{ job.title }}</strong><span>{{ job.created_at.strftime('%Y.%m.%d') }} 등록</span></div><span class="status status-{{ job.status }}">{{ {'pending':'검토 중','approved':'게시 중','blocked':'차단','closed':'마감'}.get(job.status, job.status) }}</span></a></li>{% endfor %}</ul>
+        {% else %}<div class="panel-empty"><span>＋</span><p>아직 등록한 공고가 없습니다.</p><a class="btn btn-primary" href="{{ url_for('company.job_new') }}">첫 공고 등록하기</a></div>{% endif %}
+      </section>
+      {% else %}
+      <section class="mypage-panel">
+        <div class="panel-heading"><div><h2>최근 지원 내역</h2><p>지원한 공고와 진행 상태를 확인하세요.</p></div><a href="{{ url_for('applications.my_applications') }}">전체보기</a></div>
+        {% if applications %}<ul class="activity-list">{% for application in applications %}<li><a href="{{ url_for('jobs.job_detail', job_id=application.job_id) }}"><div><strong>{{ application.job.title }}</strong><span>{{ application.job.company.company_name if application.job.company else '' }} · {{ application.applied_at.strftime('%Y.%m.%d') }}</span></div><span class="status status-{{ application.status }}">{{ {'submitted':'지원 완료','cancelled':'지원 취소','accepted':'합격','rejected':'불합격'}.get(application.status, application.status) }}</span></a></li>{% endfor %}</ul>
+        {% else %}<div class="panel-empty"><span>⌁</span><p>아직 지원한 공고가 없습니다.</p><a class="btn btn-primary" href="{{ url_for('jobs.job_list') }}">채용공고 둘러보기</a></div>{% endif %}
+      </section>
+
+      <div class="mypage-subgrid">
+        <section class="mypage-panel compact-panel"><div class="panel-heading"><div><h2>스크랩 공고</h2><p>관심 있는 채용공고</p></div></div>{% if scraps %}<ul class="mini-list">{% for scrap in scraps %}<li><a href="{{ url_for('jobs.job_detail', job_id=scrap.job_id) }}"><strong>{{ scrap.job.title }}</strong><span>{{ scrap.job.company.company_name if scrap.job.company else '' }}</span></a></li>{% endfor %}</ul>{% else %}<p class="compact-empty">스크랩한 공고가 없습니다.</p>{% endif %}</section>
+        <section class="mypage-panel compact-panel"><div class="panel-heading"><div><h2>내 이력서</h2><p>등록한 이력서 파일</p></div></div>{% if resumes %}<ul class="mini-list">{% for resume in resumes %}<li><div><strong>{{ resume.original_filename or '이력서' }}</strong><span>{{ resume.uploaded_at.strftime('%Y.%m.%d') }} 등록</span></div></li>{% endfor %}</ul>{% else %}<p class="compact-empty">등록된 이력서가 없습니다.</p>{% endif %}</section>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+<script>
+  const editPanel = document.querySelector('.edit-panel');
+  const editToggle = document.querySelector('.profile-edit-toggle');
+  const editCancel = document.querySelector('.edit-cancel');
+  function setEditPanel(open) { editPanel.hidden = !open; editToggle.setAttribute('aria-expanded', String(open)); if (open) editPanel.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+  editToggle.addEventListener('click', () => setEditPanel(editPanel.hidden));
+  editCancel.addEventListener('click', () => setEditPanel(false));
+</script>
+{% endblock %}
