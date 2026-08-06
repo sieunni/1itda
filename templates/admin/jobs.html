@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}공고 관리 - 1ITDA{% endblock %}
+
+{% block content %}
+<section class="admin-page">
+  {% include "admin/_messages.html" %}
+  <div class="admin-page-header">
+    <div>
+      <p class="admin-eyebrow">JOBS</p>
+      <h1>공고 관리</h1>
+      <p>등록된 채용공고를 승인하거나 차단할 수 있습니다.</p>
+    </div>
+    <a class="btn btn-outline" href="{{ url_for('admin.dashboard') }}">대시보드</a>
+  </div>
+
+  <form class="admin-filter" method="get">
+    <label for="status">상태</label>
+    <select id="status" name="status" onchange="this.form.submit()">
+      <option value="" {% if status_filter == "" %}selected{% endif %}>전체</option>
+      {% for value, label in status_labels.items() %}
+      <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </form>
+
+  {% if jobs %}
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead><tr><th>공고</th><th>기업</th><th>상태</th><th>마감일</th><th>등록일</th><th>관리</th></tr></thead>
+      <tbody>
+      {% for job in jobs %}
+        <tr>
+          <td><a href="{{ url_for('jobs.job_detail', job_id=job.job_id) }}"><strong>{{ job.title }}</strong></a><small>{{ job.region or '지역 미정' }} · {{ job.industry or '업종 미정' }}</small></td>
+          <td>{{ job.company.company_name if job.company else "-" }}</td>
+          <td><span class="status-badge status-{{ job.status }}">{{ status_labels.get(job.status, job.status) }}</span></td>
+          <td>{{ job.deadline or "상시 채용" }}</td>
+          <td>{{ job.created_at.strftime('%Y-%m-%d') if job.created_at else '-' }}</td>
+          <td class="admin-actions">
+            {% if job.status == "pending" %}
+            <form method="post" action="{{ url_for('admin.approve_job', job_id=job.job_id, status=status_filter) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit">승인</button>
+            </form>
+            {% endif %}
+            {% if job.status != "blocked" %}
+            <form method="post" action="{{ url_for('admin.block_job', job_id=job.job_id, status=status_filter) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" onclick="return confirm('이 공고를 차단하시겠습니까?')">차단</button>
+            </form>
+            {% else %}
+            <form method="post" action="{{ url_for('admin.unblock_job', job_id=job.job_id, status=status_filter) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit">차단 해제</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="admin-empty"><p>조건에 해당하는 공고가 없습니다.</p></div>
+  {% endif %}
+</section>
+{% endblock %}

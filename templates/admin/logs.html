@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}처리 이력 - 1ITDA{% endblock %}
+
+{% block content %}
+<section class="admin-page">
+  {% include "admin/_messages.html" %}
+  <div class="admin-page-header">
+    <div>
+      <p class="admin-eyebrow">ACTION LOGS</p>
+      <h1>관리자 처리 이력</h1>
+      <p>최근 200건의 관리자 처리·제재 이력입니다.</p>
+    </div>
+    <a class="btn btn-outline" href="{{ url_for('admin.dashboard') }}">대시보드</a>
+  </div>
+
+  {% if logs %}
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead><tr><th>처리 관리자</th><th>동작</th><th>대상</th><th>처리일시</th></tr></thead>
+      <tbody>
+      {% for log in logs %}
+        <tr>
+          <td>{{ admins.get(log.admin_id).email if admins.get(log.admin_id) else "-" }}</td>
+          <td>{{ log.action_type }}</td>
+          <td>{{ log.target_type }}{% if log.target_id %} #{{ log.target_id }}{% endif %}</td>
+          <td>{{ log.created_at.strftime('%Y-%m-%d %H:%M') if log.created_at else '-' }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="admin-empty"><p>처리 이력이 없습니다.</p></div>
+  {% endif %}
+</section>
+{% endblock %}

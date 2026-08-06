@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}관리자 대시보드 - 1ITDA{% endblock %}
+
+{% block content %}
+<section class="admin-page">
+  {% include "admin/_messages.html" %}
+  <div class="admin-page-header">
+    <div>
+      <p class="admin-eyebrow">ADMIN DASHBOARD</p>
+      <h1>관리자 대시보드</h1>
+      <p>회원, 기업, 공고, 신고 현황을 한눈에 확인합니다.</p>
+    </div>
+  </div>
+
+  <div class="admin-stat-grid">
+    <a class="admin-stat-card" href="{{ url_for('admin.users', role='jobseeker') }}">
+      <span class="admin-stat-label">구직자 회원</span>
+      <strong class="admin-stat-value">{{ stats.jobseeker_count }}</strong>
+    </a>
+    <a class="admin-stat-card" href="{{ url_for('admin.users', role='company') }}">
+      <span class="admin-stat-label">기업 회원</span>
+      <strong class="admin-stat-value">{{ stats.company_count }}</strong>
+    </a>
+    <a class="admin-stat-card" href="{{ url_for('admin.companies') }}">
+      <span class="admin-stat-label">인증 대기 기업</span>
+      <strong class="admin-stat-value">{{ stats.unverified_companies }}</strong>
+    </a>
+    <a class="admin-stat-card" href="{{ url_for('admin.jobs', status='pending') }}">
+      <span class="admin-stat-label">승인 대기 공고</span>
+      <strong class="admin-stat-value">{{ stats.pending_jobs }}</strong>
+    </a>
+    <a class="admin-stat-card" href="{{ url_for('admin.reports', status='pending') }}">
+      <span class="admin-stat-label">미처리 신고</span>
+      <strong class="admin-stat-value">{{ stats.pending_reports }}</strong>
+    </a>
+  </div>
+
+  <nav class="admin-quick-nav">
+    <a href="{{ url_for('admin.users') }}">회원 관리</a>
+    <a href="{{ url_for('admin.companies') }}">기업 인증 관리</a>
+    <a href="{{ url_for('admin.jobs') }}">공고 관리</a>
+    <a href="{{ url_for('admin.reports') }}">신고 관리</a>
+    <a href="{{ url_for('admin.categories') }}">지역·업종 분류 관리</a>
+    <a href="{{ url_for('admin.logs') }}">처리 이력</a>
+  </nav>
+</section>
+{% endblock %}

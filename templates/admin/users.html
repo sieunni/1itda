@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}회원 관리 - 1ITDA{% endblock %}
+
+{% block content %}
+<section class="admin-page">
+  {% include "admin/_messages.html" %}
+  <div class="admin-page-header">
+    <div>
+      <p class="admin-eyebrow">USERS</p>
+      <h1>회원 관리</h1>
+      <p>구직자·기업 회원을 조회하고 차단하거나 차단을 해제할 수 있습니다.</p>
+    </div>
+    <a class="btn btn-outline" href="{{ url_for('admin.dashboard') }}">대시보드</a>
+  </div>
+
+  <form class="admin-filter" method="get">
+    <label for="role">역할</label>
+    <select id="role" name="role" onchange="this.form.submit()">
+      <option value="" {% if role_filter == "" %}selected{% endif %}>전체</option>
+      <option value="jobseeker" {% if role_filter == "jobseeker" %}selected{% endif %}>구직자</option>
+      <option value="company" {% if role_filter == "company" %}selected{% endif %}>기업</option>
+    </select>
+  </form>
+
+  {% if users %}
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead><tr><th>이름</th><th>이메일</th><th>역할</th><th>상태</th><th>가입일</th><th>관리</th></tr></thead>
+      <tbody>
+      {% for member in users %}
+        <tr>
+          <td>{{ member.name or "이름 미등록" }}</td>
+          <td>{{ member.email }}</td>
+          <td>{{ "구직자" if member.role == "jobseeker" else "기업" }}</td>
+          <td><span class="status-badge {{ 'status-approved' if member.is_active else 'status-blocked' }}">{{ "활성" if member.is_active else "차단됨" }}</span></td>
+          <td>{{ member.created_at.strftime('%Y-%m-%d') if member.created_at else '-' }}</td>
+          <td class="admin-actions">
+            <form method="post" action="{{ url_for('admin.toggle_user', user_id=member.user_id, role=role_filter) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" onclick="return confirm('{{ '차단을 해제' if not member.is_active else '차단' }}하시겠습니까?')">
+                {{ "차단 해제" if not member.is_active else "차단" }}
+              </button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="admin-empty"><p>조건에 해당하는 회원이 없습니다.</p></div>
+  {% endif %}
+</section>
+{% endblock %}
