@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}기업 대시보드 - 1ITDA{% endblock %}
+
+{% block content %}
+<section class="company-page">
+  {% include "company/_messages.html" %}
+  <div class="company-page-header">
+    <div>
+      <p class="company-eyebrow">COMPANY DASHBOARD</p>
+      <h1>{{ company.company_name }} 공고 관리</h1>
+      <p>등록한 공고와 공고별 지원 현황을 확인할 수 있습니다.</p>
+    </div>
+    <div class="company-header-actions">
+      <a class="btn btn-outline" href="{{ url_for('company.applicants') }}">전체 지원자</a>
+      <a class="btn btn-primary" href="{{ url_for('company.job_new') }}">공고 등록</a>
+    </div>
+  </div>
+
+  {% if jobs %}
+  <div class="company-table-wrap">
+    <table class="company-table">
+      <thead><tr><th>공고</th><th>상태</th><th>마감일</th><th>지원자</th><th>관리</th></tr></thead>
+      <tbody>
+      {% for job in jobs %}
+        {% set current_status = effective_job_status(job) %}
+        <tr>
+          <td><strong>{{ job.title }}</strong><small>{{ job.region or '지역 미정' }} · {{ job.industry or '업종 미정' }}</small></td>
+          <td><span class="status-badge status-{{ current_status }}">{{ {'pending':'승인 대기', 'approved':'공개 중', 'blocked':'차단', 'closed':'마감'}[current_status] }}</span></td>
+          <td>{{ job.deadline or '상시 채용' }}</td>
+          <td><a href="{{ url_for('company.applicants', job_id=job.job_id) }}">{{ applicant_counts.get(job.job_id, 0) }}명</a></td>
+          <td class="company-actions">
+            {% if current_status != 'closed' %}<a href="{{ url_for('company.job_edit', job_id=job.job_id) }}">수정</a>{% endif %}
+            {% if current_status not in ['closed', 'blocked'] %}
+            <form method="post" action="{{ url_for('company.job_close', job_id=job.job_id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" onclick="return confirm('이 공고를 마감하시겠습니까?')">마감</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="company-empty"><p>등록한 공고가 없습니다.</p><a class="btn btn-primary" href="{{ url_for('company.job_new') }}">첫 공고 등록하기</a></div>
+  {% endif %}
+</section>
+{% endblock %}

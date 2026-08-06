@@ -727,3 +727,53 @@ body {
     padding: 22px;
   }
 }
+
+/* 기업 대시보드 */
+.company-page { display: flex; flex-direction: column; gap: 24px; }
+.company-page-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
+.company-page-header h1 { margin: 4px 0 8px; }
+.company-page-header p { margin: 0; color: var(--color-muted); }
+.company-eyebrow { color: var(--color-primary) !important; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.12em; }
+.company-header-actions, .company-form-actions, .company-actions, .company-status-form { display: flex; align-items: center; gap: 10px; }
+.company-table-wrap { overflow-x: auto; background: #fff; border: 1px solid var(--color-border); border-radius: 12px; }
+.company-table { width: 100%; border-collapse: collapse; }
+.company-table th, .company-table td { padding: 16px; border-bottom: 1px solid var(--color-border); text-align: left; vertical-align: middle; }
+.company-table th { color: var(--color-muted); background: #f8fafc; font-size: 0.82rem; }
+.company-table tbody tr:last-child td { border-bottom: 0; }
+.company-table td small { display: block; margin-top: 5px; color: var(--color-muted); }
+.company-table a, .company-actions button { color: var(--color-primary); font-weight: 700; text-decoration: none; }
+.company-actions form { margin: 0; }
+.company-actions button { padding: 0; background: none; border: 0; cursor: pointer; }
+.status-badge { display: inline-block; padding: 5px 9px; border-radius: 999px; background: #f3f4f6; font-size: 0.78rem; font-weight: 700; white-space: nowrap; }
+.status-approved, .status-accepted { color: #047857; background: #d1fae5; }
+.status-pending, .status-submitted { color: #92400e; background: #fef3c7; }
+.status-blocked, .status-rejected { color: #b91c1c; background: #fee2e2; }
+.status-closed, .status-cancelled { color: #4b5563; background: #e5e7eb; }
+.company-empty { padding: 56px 24px; text-align: center; background: #fff; border: 1px solid var(--color-border); border-radius: 12px; }
+.company-empty p { margin: 0 0 20px; color: var(--color-muted); }
+.company-form, .company-panel { padding: 28px; background: #fff; border: 1px solid var(--color-border); border-radius: 12px; }
+.company-form { display: flex; flex-direction: column; gap: 20px; }
+.company-form-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.company-form textarea, .company-filter select, .company-status-form select { padding: 12px 14px; color: var(--color-text); background: #fff; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; }
+.company-form textarea:focus { border-color: var(--color-primary); outline: none; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12); }
+.company-form-actions { justify-content: flex-end; }
+.company-form-actions button, .company-status-form button { border: 0; cursor: pointer; }
+.company-filter { display: flex; align-items: center; gap: 10px; }
+.company-filter label { font-weight: 700; }
+.company-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.company-panel h2 { margin-top: 0; font-size: 1.1rem; }
+.company-panel dl { display: grid; grid-template-columns: 90px 1fr; gap: 12px; margin: 0; }
+.company-panel dt { color: var(--color-muted); }
+.company-panel dd { margin: 0; }
+.company-resume pre { overflow-x: auto; margin-bottom: 0; padding: 18px; white-space: pre-wrap; overflow-wrap: anywhere; background: #f8fafc; border-radius: 8px; font-family: inherit; }
+.company-help { color: var(--color-muted); font-size: 0.88rem; }
+.company-messages { display: flex; flex-direction: column; gap: 8px; }
+.company-message { margin: 0; padding: 12px 16px; border-radius: 8px; }
+.company-message-success { color: #065f46; background: #d1fae5; }
+.company-message-error { color: #991b1b; background: #fee2e2; }
+
+@media (max-width: 720px) {
+  .company-page-header { align-items: flex-start; flex-direction: column; }
+  .company-form-row, .company-detail-grid { grid-template-columns: 1fr; }
+  .company-filter { align-items: stretch; flex-direction: column; }
+}

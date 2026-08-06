@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block title %}지원자 조회 - 1ITDA{% endblock %}
+
+{% block content %}
+<section class="company-page">
+  {% include "company/_messages.html" %}
+  <div class="company-page-header"><div><p class="company-eyebrow">APPLICANTS</p><h1>지원자 조회</h1><p>자사 공고에 접수된 지원서만 표시됩니다.</p></div><a class="btn btn-outline" href="{{ url_for('company.dashboard') }}">공고 관리</a></div>
+  <form class="company-filter" method="get">
+    <label for="job_id">공고 선택</label>
+    <select id="job_id" name="job_id"><option value="">전체 공고</option>{% for job in jobs %}<option value="{{ job.job_id }}" {% if selected_job_id == job.job_id %}selected{% endif %}>{{ job.title }}</option>{% endfor %}</select>
+    <button class="btn btn-outline" type="submit">조회</button>
+  </form>
+  {% if applications %}
+  <div class="company-table-wrap"><table class="company-table"><thead><tr><th>지원자</th><th>공고</th><th>지원일</th><th>상태</th><th></th></tr></thead><tbody>
+  {% for application in applications %}{% set applicant = applicant_users.get(application.user_id) %}
+  <tr><td><strong>{{ applicant.name if applicant and applicant.name else '이름 미등록' }}</strong><small>{{ applicant.email if applicant else '' }}</small></td><td>{{ application.job.title }}</td><td>{{ application.applied_at.strftime('%Y-%m-%d') }}</td><td><span class="status-badge status-{{ application.status }}">{{ {'submitted':'검토 중', 'cancelled':'지원 취소', 'accepted':'합격', 'rejected':'불합격'}.get(application.status, application.status) }}</span></td><td><a href="{{ url_for('company.applicant_detail', application_id=application.application_id) }}">상세 보기</a></td></tr>
+  {% endfor %}</tbody></table></div>
+  {% else %}<div class="company-empty"><p>조건에 해당하는 지원자가 없습니다.</p></div>{% endif %}
+</section>
+{% endblock %}

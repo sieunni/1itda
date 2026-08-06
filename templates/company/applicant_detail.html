@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}지원자 상세 - 1ITDA{% endblock %}
+
+{% block content %}
+<section class="company-page company-detail-page">
+  {% include "company/_messages.html" %}
+  <div class="company-page-header"><div><p class="company-eyebrow">APPLICATION DETAIL</p><h1>지원자 상세</h1><p>{{ application.job.title }}</p></div><a class="btn btn-outline" href="{{ url_for('company.applicants', job_id=application.job_id) }}">목록으로</a></div>
+  <div class="company-detail-grid">
+    <article class="company-panel"><h2>지원자 정보</h2><dl><dt>이름</dt><dd>{{ applicant.name if applicant and applicant.name else '이름 미등록' }}</dd><dt>이메일</dt><dd>{{ applicant.email if applicant else '확인할 수 없음' }}</dd><dt>지원일</dt><dd>{{ application.applied_at.strftime('%Y-%m-%d %H:%M') }}</dd></dl></article>
+    <article class="company-panel"><h2>지원 상태</h2><form class="company-status-form" method="post" action="{{ url_for('company.applicant_status', application_id=application.application_id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><select name="status" {% if application.status == 'cancelled' %}disabled{% endif %}><option value="submitted" {% if application.status == 'submitted' %}selected{% endif %}>검토 중</option><option value="accepted" {% if application.status == 'accepted' %}selected{% endif %}>합격</option><option value="rejected" {% if application.status == 'rejected' %}selected{% endif %}>불합격</option></select><button class="btn btn-primary" type="submit" {% if application.status == 'cancelled' %}disabled{% endif %}>상태 변경</button></form>{% if application.status == 'cancelled' %}<p class="company-help">지원자가 취소한 지원서는 변경할 수 없습니다.</p>{% endif %}</article>
+  </div>
+  <article class="company-panel company-resume"><h2>제출 이력서</h2>{% if application.resume_snapshot %}<pre>{{ application.resume_snapshot }}</pre>{% elif resume %}<p>제출 파일: {{ resume.original_filename or '파일명 없음' }}</p><p class="company-help">파일 다운로드는 현재 지원하지 않습니다.</p>{% else %}<p class="company-help">확인할 수 있는 이력서가 없습니다.</p>{% endif %}</article>
+</section>
+{% endblock %}
