@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block title %}회원가입 - 1ITDA{% endblock %}
+
+{% block content %}
+<section class="auth-container">
+  <div class="auth-card auth-card-wide">
+    <div class="auth-header">
+      <span class="auth-badge">JOIN 1ITDA</span>
+      <h1>회원가입</h1>
+      <p>회원 유형을 선택하고 정보를 입력해 주세요.</p>
+    </div>
+
+    <form method="post" action="{{ url_for('auth.join') }}" class="auth-form">
+      {% if csrf_token is defined %}
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% endif %}
+
+      <fieldset class="role-selector">
+        <legend>회원 유형</legend>
+
+        <label class="role-option">
+          <input type="radio" name="role" value="jobseeker" checked>
+          <span class="role-content">
+            <strong>구직자</strong>
+            <small>채용공고 검색 및 입사 지원</small>
+          </span>
+        </label>
+
+        <label class="role-option">
+          <input type="radio" name="role" value="company">
+          <span class="role-content">
+            <strong>기업</strong>
+            <small>공고 등록 및 지원자 관리</small>
+          </span>
+        </label>
+      </fieldset>
+
+      <div class="form-group">
+        <label for="name">이름 또는 담당자명</label>
+        <input
+          type="text"
+          id="name"
+          name="name"
+          value="{{ request.form.get('name', '') }}"
+          placeholder="이름을 입력하세요"
+          maxlength="50"
+          autocomplete="name"
+          required
+        >
+      </div>
+
+      <div class="form-group" id="company-name-group" hidden>
+        <label for="company_name">회사명</label>
+        <input
+          type="text"
+          id="company_name"
+          name="company_name"
+          value="{{ request.form.get('company_name', '') }}"
+          placeholder="회사명을 입력하세요"
+          maxlength="100"
+        >
+      </div>
+
+      <div class="form-group">
+        <label for="email">이메일</label>
+        <input
+          type="email"
+          id="email"
+          name="email"
+          value="{{ request.form.get('email', '') }}"
+          placeholder="example@email.com"
+          maxlength="255"
+          autocomplete="email"
+          required
+        >
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="password">비밀번호</label>
+          <input
+            type="password"
+            id="password"
+            name="password"
+            placeholder="영문·숫자 포함 8자 이상"
+            minlength="8"
+            maxlength="72"
+            autocomplete="new-password"
+            required
+          >
+        </div>
+
+        <div class="form-group">
+          <label for="password_confirm">비밀번호 확인</label>
+          <input
+            type="password"
+            id="password_confirm"
+            name="password_confirm"
+            placeholder="비밀번호 다시 입력"
+            minlength="8"
+            maxlength="72"
+            autocomplete="new-password"
+            required
+          >
+        </div>
+      </div>
+
+      <label class="checkbox-group">
+        <input type="checkbox" name="privacy_agreed" value="1" required>
+        <span>개인정보 수집 및 이용에 동의합니다.</span>
+      </label>
+
+      <button type="submit" class="auth-submit">회원가입</button>
+    </form>
+
+    <p class="auth-switch">
+      이미 회원이신가요?
+      <a href="{{ url_for('auth.login') }}">로그인</a>
+    </p>
+  </div>
+</section>
+
+<script>
+  const roleInputs = document.querySelectorAll('input[name="role"]');
+  const companyGroup = document.getElementById("company-name-group");
+  const companyInput = document.getElementById("company_name");
+
+  function updateCompanyField() {
+    const selected = document.querySelector('input[name="role"]:checked');
+    const isCompany = selected && selected.value === "company";
+
+    companyGroup.hidden = !isCompany;
+    companyInput.required = isCompany;
+  }
+
+  roleInputs.forEach((input) => {
+    input.addEventListener("change", updateCompanyField);
+  });
+
+  updateCompanyField();
+</script>
+{% endblock %}
