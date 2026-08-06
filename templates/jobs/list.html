@@ -86,7 +86,14 @@
             <span class="job-card__badge {% if job.is_closed %}job-card__badge--closed{% endif %}">
               {{ job.deadline_label }}
             </span>
-            <a class="job-card__link" href="{{ url_for('jobs.job_detail', job_id=job.job_id) }}">상세보기</a>
+            <div class="job-card__actions">
+              <a class="job-card__link" href="{{ url_for('jobs.job_detail', job_id=job.job_id) }}">상세보기</a>
+              {% if job.is_closed %}
+                <span class="job-card__apply job-card__apply--disabled" aria-disabled="true">지원 마감</span>
+              {% else %}
+                <a class="job-card__apply" href="{{ url_for('applications.apply', job_id=job.job_id) }}">지원하기</a>
+              {% endif %}
+            </div>
           </div>
         </article>
       {% endfor %}
@@ -96,7 +103,8 @@
       {% if has_filters %}
         검색 조건에 맞는 채용공고가 없습니다.
       {% else %}
-        등록된 채용공고가 없습니다.
+        <strong>현재 공개된 채용공고가 없습니다.</strong>
+        <span>새 공고가 등록되면 상세보기와 지원하기 버튼이 표시됩니다.</span>
       {% endif %}
     </div>
   {% endif %}

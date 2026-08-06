@@ -4,7 +4,6 @@
 
 {% block content %}
 <section class="company-page company-form-page">
-  {% include "company/_messages.html" %}
   <div class="company-page-header"><div><p class="company-eyebrow">JOB POSTING</p><h1>{{ page_title }}</h1><p>등록 후 관리자 승인 절차가 진행됩니다.</p></div></div>
   <form class="company-form" method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

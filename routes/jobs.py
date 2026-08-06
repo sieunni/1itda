@@ -1,11 +1,12 @@
 from datetime import date, datetime
 from math import ceil
 
-from flask import Blueprint, abort, render_template, request
+from flask import Blueprint, abort, render_template, request, session
 from sqlalchemy import or_
 from sqlalchemy.orm import joinedload
 
-from models import Company, Job
+from extensions import db
+from models import Company, Job, User
 
 jobs_bp = Blueprint("jobs", __name__, url_prefix="/jobs")
 
@@ -176,9 +177,27 @@ def job_list():
 
 @jobs_bp.route("/<int:job_id>", methods=["GET"])
 def job_detail(job_id):
-    job = _approved_jobs_query().filter(Job.job_id == job_id).first()
+    job = Job.query.options(joinedload(Job.company)).filter(Job.job_id == job_id).first()
 
     if job is None:
         abort(404)
 
-    return render_template("jobs/detail.html", job=_job_to_view(job))
+    is_preview = job.status != "approved"
+    if is_preview:
+        user_id = session.get("user_id")
+        user = db.session.get(User, user_id) if user_id else None
+        is_owner = bool(
+            user
+            and user.role == "company"
+            and job.company
+            and job.company.user_id == user.user_id
+        )
+        if not is_owner:
+            abort(404)
+
+    return render_template(
+        "jobs/detail.html",
+        job=_job_to_view(job),
+        is_preview=is_preview,
+        job_status=job.status,
+    )

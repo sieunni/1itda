@@ -1,13 +1,124 @@
-from flask import Blueprint, render_template
+import os
+import uuid
+from datetime import date
+
+from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
+from sqlalchemy.exc import IntegrityError
+from werkzeug.utils import secure_filename
+
+from extensions import db
+from models import Application, Job, Resume, User
 
 applications_bp = Blueprint("applications", __name__)
 
+ALLOWED_RESUME_EXTENSIONS = {"pdf", "doc", "docx"}
 
-@applications_bp.route("/jobs/<int:job_id>/apply")
+
+def _current_user():
+    user_id = session.get("user_id")
+    return db.session.get(User, user_id) if user_id else None
+
+
+def _allowed_resume(filename):
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_RESUME_EXTENSIONS
+
+
+@applications_bp.route("/jobs/<int:job_id>/apply", methods=["GET", "POST"])
 def apply(job_id):
-    return render_template("placeholder.html", title="입사지원")
+    user = _current_user()
+    if not user:
+        flash("로그인 후 지원할 수 있습니다.", "error")
+        return redirect(url_for("auth.login"))
+
+    job = db.session.get(Job, job_id)
+    if not job or job.status != "approved":
+        flash("지원할 수 없는 공고입니다.", "error")
+        return redirect(url_for("jobs.job_list"))
+
+    if user.role != "jobseeker":
+        flash("구직자 계정으로만 지원할 수 있습니다.", "error")
+        return redirect(url_for("jobs.job_detail", job_id=job.job_id))
+
+    if job.deadline and job.deadline < date.today():
+        flash("지원이 마감된 공고입니다.", "error")
+        return redirect(url_for("jobs.job_detail", job_id=job.job_id))
+
+    existing_application = Application.query.filter_by(user_id=user.user_id, job_id=job.job_id).first()
+    if existing_application:
+        flash("이미 지원한 공고입니다.", "error")
+        return redirect(url_for("profile.mypage"))
+
+    resumes = (
+        Resume.query.filter_by(user_id=user.user_id)
+        .order_by(Resume.uploaded_at.desc())
+        .all()
+    )
+
+    if request.method == "GET":
+        return render_template("applications/apply.html", job=job, user=user, resumes=resumes)
+
+    selected_resume_id = request.form.get("resume_id", type=int)
+    uploaded_file = request.files.get("resume_file")
+    resume = None
+    saved_path = None
+
+    if uploaded_file and uploaded_file.filename:
+        if not _allowed_resume(uploaded_file.filename):
+            flash("이력서는 PDF, DOC, DOCX 파일만 등록할 수 있습니다.", "error")
+            return render_template("applications/apply.html", job=job, user=user, resumes=resumes), 400
+
+        original_filename = secure_filename(uploaded_file.filename)
+        if not original_filename:
+            flash("파일명을 확인해 주세요.", "error")
+            return render_template("applications/apply.html", job=job, user=user, resumes=resumes), 400
+
+        extension = original_filename.rsplit(".", 1)[1].lower()
+        stored_filename = f"{uuid.uuid4().hex}.{extension}"
+        saved_path = os.path.join(current_app.config["UPLOAD_FOLDER"], stored_filename)
+        uploaded_file.save(saved_path)
+        resume = Resume(
+            user_id=user.user_id,
+            file_path=stored_filename,
+            original_filename=original_filename,
+        )
+        db.session.add(resume)
+        db.session.flush()
+    elif selected_resume_id:
+        resume = Resume.query.filter_by(resume_id=selected_resume_id, user_id=user.user_id).first()
+        if not resume:
+            flash("선택한 이력서를 확인할 수 없습니다.", "error")
+            return render_template("applications/apply.html", job=job, user=user, resumes=resumes), 400
+
+    if not resume:
+        flash("지원에 사용할 이력서를 선택하거나 새로 등록해 주세요.", "error")
+        return render_template("applications/apply.html", job=job, user=user, resumes=resumes), 400
+
+    application = Application(
+        user_id=user.user_id,
+        job_id=job.job_id,
+        resume_id=resume.resume_id,
+        resume_snapshot=resume.original_filename or "이력서",
+        status="submitted",
+    )
+    db.session.add(application)
+
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        if saved_path and os.path.exists(saved_path):
+            os.remove(saved_path)
+        flash("이미 지원한 공고입니다.", "error")
+        return redirect(url_for("profile.mypage"))
+
+    flash(f"‘{job.title}’ 공고에 지원이 완료되었습니다.", "success")
+    return redirect(url_for("profile.mypage"))
 
 
 @applications_bp.route("/mypage/applications")
 def my_applications():
-    return render_template("placeholder.html", title="지원 내역")
+    user = _current_user()
+    if not user:
+        flash("로그인 후 이용해 주세요.", "error")
+        return redirect(url_for("auth.login"))
+    return redirect(url_for("profile.mypage"))

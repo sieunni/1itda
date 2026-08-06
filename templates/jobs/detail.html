@@ -6,6 +6,13 @@
 <article class="job-detail">
   <a class="job-detail__back" href="{{ url_for('jobs.job_list') }}">목록으로 돌아가기</a>
 
+  {% if is_preview %}
+  <div class="job-preview-notice" role="status">
+    <strong>기업회원 미리보기</strong>
+    <span>이 공고는 현재 {{ {'pending':'검토 중', 'blocked':'차단', 'closed':'마감'}.get(job_status, job_status) }} 상태로, 아직 구직자에게 공개되지 않습니다.</span>
+  </div>
+  {% endif %}
+
   <header class="job-detail__header">
     <p class="job-detail__company">{{ job.company_name }}</p>
     <h1>{{ job.title }}</h1>
@@ -47,7 +54,12 @@
   {% endif %}
 
   <div class="job-detail__actions">
-    {% if job.is_closed %}
+    {% if is_preview %}
+      {% if job_status == 'pending' %}
+      <a class="job-action-button job-action-button--primary" href="{{ url_for('company.job_edit', job_id=job.job_id) }}">공고 수정</a>
+      {% endif %}
+      <a class="job-action-button job-action-button--secondary" href="{{ url_for('company.dashboard') }}">공고 관리로 이동</a>
+    {% elif job.is_closed %}
       <button
         type="button"
         class="job-action-button job-action-button--primary"
@@ -63,6 +75,7 @@
       </a>
     {% endif %}
 
+    {% if not is_preview %}
     <button
       type="button"
       class="job-action-button job-action-button--secondary"
@@ -83,6 +96,7 @@
     >
       공고 신고
     </button>
+    {% endif %}
   </div>
 </article>
 {% endblock %}

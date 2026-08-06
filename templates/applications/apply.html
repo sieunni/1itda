@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}{{ job.title }} 입사지원 - 1ITDA{% endblock %}
+
+{% block content %}
+<section class="apply-page">
+  <a class="apply-back" href="{{ url_for('jobs.job_detail', job_id=job.job_id) }}">← 공고로 돌아가기</a>
+
+  <header class="apply-header">
+    <span>APPLICATION</span>
+    <h1>입사지원</h1>
+    <p>지원 정보를 확인하고 제출해 주세요.</p>
+  </header>
+
+  <div class="apply-layout">
+    <form class="apply-form" method="post" enctype="multipart/form-data" action="{{ url_for('applications.apply', job_id=job.job_id) }}">
+      {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+
+      <section class="apply-card">
+        <div class="apply-section-title"><span>1</span><div><h2>지원자 정보</h2><p>회원가입 시 등록한 정보입니다.</p></div></div>
+        <dl class="applicant-info">
+          <div><dt>이름</dt><dd>{{ user.name or '미등록' }}</dd></div>
+          <div><dt>이메일</dt><dd>{{ user.email }}</dd></div>
+        </dl>
+      </section>
+
+      <section class="apply-card">
+        <div class="apply-section-title"><span>2</span><div><h2>이력서 선택</h2><p>기존 이력서를 선택하거나 새 파일을 등록하세요.</p></div></div>
+
+        {% if resumes %}
+        <div class="resume-options">
+          {% for resume in resumes %}
+          <label class="resume-option">
+            <input type="radio" name="resume_id" value="{{ resume.resume_id }}" {% if loop.first %}checked{% endif %}>
+            <span class="resume-file-icon">DOC</span>
+            <span class="resume-option-text"><strong>{{ resume.original_filename or '이력서' }}</strong><small>{{ resume.uploaded_at.strftime('%Y.%m.%d') }} 등록</small></span>
+            <span class="resume-check">✓</span>
+          </label>
+          {% endfor %}
+        </div>
+        <div class="apply-divider"><span>또는</span></div>
+        {% endif %}
+
+        <label class="resume-upload" for="resume_file">
+          <span class="resume-upload-icon">＋</span>
+          <strong>새 이력서 등록</strong>
+          <small>PDF, DOC, DOCX · 최대 5MB</small>
+          <input type="file" id="resume_file" name="resume_file" accept=".pdf,.doc,.docx">
+          <span class="selected-file" aria-live="polite"></span>
+        </label>
+        <p class="apply-help">새 파일을 선택하면 기존 이력서 선택보다 우선 적용됩니다.</p>
+      </section>
+
+      <label class="apply-agreement">
+        <input type="checkbox" required>
+        <span>제출한 지원 정보가 해당 기업에 전달되는 것에 동의합니다.</span>
+      </label>
+
+      <div class="apply-actions">
+        <a class="btn btn-outline" href="{{ url_for('jobs.job_detail', job_id=job.job_id) }}">취소</a>
+        <button class="btn btn-primary" type="submit">지원서 제출하기</button>
+      </div>
+    </form>
+
+    <aside class="apply-job-card">
+      <span class="apply-job-label">지원 공고</span>
+      <p>{{ job.company.company_name if job.company else '기업명 미정' }}</p>
+      <h2>{{ job.title }}</h2>
+      <dl>
+        <div><dt>지역</dt><dd>{{ job.region or '지역 미정' }}</dd></div>
+        <div><dt>직무</dt><dd>{{ job.industry or '업종 미정' }}</dd></div>
+        <div><dt>마감일</dt><dd>{{ job.deadline.strftime('%Y.%m.%d') if job.deadline else '상시 채용' }}</dd></div>
+      </dl>
+      <p class="apply-notice">지원 완료 후에는 마이페이지에서 진행 상태를 확인할 수 있습니다.</p>
+    </aside>
+  </div>
+</section>
+
+<script>
+  const fileInput = document.getElementById('resume_file');
+  const fileName = document.querySelector('.selected-file');
+  fileInput.addEventListener('change', () => {
+    fileName.textContent = fileInput.files.length ? `선택된 파일: ${fileInput.files[0].name}` : '';
+  });
+</script>
+{% endblock %}

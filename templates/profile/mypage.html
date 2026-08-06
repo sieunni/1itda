@@ -56,7 +56,7 @@
       {% if user.role == 'company' %}
       <section class="mypage-panel">
         <div class="panel-heading"><div><h2>최근 등록 공고</h2><p>최근 등록한 공고를 확인해 보세요.</p></div><a href="{{ url_for('company.job_new') }}">새 공고 등록</a></div>
-        {% if jobs %}<ul class="activity-list">{% for job in jobs %}<li><a href="{{ url_for('jobs.job_detail', job_id=job.job_id) }}"><div><strong>{{ job.title }}</strong><span>{{ job.created_at.strftime('%Y.%m.%d') }} 등록</span></div><span class="status status-{{ job.status }}">{{ {'pending':'검토 중','approved':'게시 중','blocked':'차단','closed':'마감'}.get(job.status, job.status) }}</span></a></li>{% endfor %}</ul>
+        {% if jobs %}<ul class="activity-list">{% for job in jobs %}<li>{% if job.status == 'approved' %}{% set job_url = url_for('jobs.job_detail', job_id=job.job_id) %}{% elif job.status == 'pending' %}{% set job_url = url_for('company.job_edit', job_id=job.job_id) %}{% else %}{% set job_url = url_for('company.dashboard') %}{% endif %}<a href="{{ job_url }}"><div><strong>{{ job.title }}</strong><span>{{ job.created_at.strftime('%Y.%m.%d') }} 등록</span></div><span class="status status-{{ job.status }}">{{ {'pending':'검토 중','approved':'게시 중','blocked':'차단','closed':'마감'}.get(job.status, job.status) }}</span></a></li>{% endfor %}</ul>
         {% else %}<div class="panel-empty"><span>＋</span><p>아직 등록한 공고가 없습니다.</p><a class="btn btn-primary" href="{{ url_for('company.job_new') }}">첫 공고 등록하기</a></div>{% endif %}
       </section>
       {% else %}

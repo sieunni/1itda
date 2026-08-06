@@ -4,7 +4,6 @@
 
 {% block content %}
 <section class="company-page">
-  {% include "company/_messages.html" %}
   <div class="company-page-header"><div><p class="company-eyebrow">APPLICANTS</p><h1>지원자 조회</h1><p>자사 공고에 접수된 지원서만 표시됩니다.</p></div><a class="btn btn-outline" href="{{ url_for('company.dashboard') }}">공고 관리</a></div>
   <form class="company-filter" method="get">
     <label for="job_id">공고 선택</label>
