@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}로그인 - 1ITDA{% endblock %}
+
+{% block content %}
+<section class="auth-container">
+  <div class="auth-card">
+    <div class="auth-header">
+      <span class="auth-badge">WELCOME BACK</span>
+      <h1>로그인</h1>
+      <p>1ITDA에서 새로운 기회를 확인하세요.</p>
+    </div>
+
+    <form method="post" action="{{ url_for('auth.login') }}" class="auth-form">
+      {% if csrf_token is defined %}
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% endif %}
+
+      <div class="form-group">
+        <label for="email">이메일</label>
+        <input
+          type="email"
+          id="email"
+          name="email"
+          value="{{ request.form.get('email', '') }}"
+          placeholder="example@email.com"
+          maxlength="255"
+          autocomplete="email"
+          required
+        >
+      </div>
+
+      <div class="form-group">
+        <div class="form-label-row">
+          <label for="password">비밀번호</label>
+          <a href="#" class="text-link">비밀번호 찾기</a>
+        </div>
+
+        <input
+          type="password"
+          id="password"
+          name="password"
+          placeholder="비밀번호를 입력하세요"
+          maxlength="72"
+          autocomplete="current-password"
+          required
+        >
+      </div>
+
+      <label class="checkbox-group">
+        <input type="checkbox" name="remember" value="1">
+        <span>로그인 상태 유지</span>
+      </label>
+
+      <button type="submit" class="auth-submit">로그인</button>
+    </form>
+
+    <p class="auth-switch">
+      아직 회원이 아니신가요?
+      <a href="{{ url_for('auth.join') }}">회원가입</a>
+    </p>
+  </div>
+</section>
+{% endblock %}
