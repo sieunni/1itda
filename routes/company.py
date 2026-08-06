@@ -6,7 +6,7 @@ from flask import Blueprint, abort, current_app, flash, redirect, render_templat
 from sqlalchemy.exc import SQLAlchemyError
 
 from extensions import db
-from models import Application, ApplicationStatusHistory, Company, Job, Resume, User
+from models import Application, ApplicationStatusHistory, Category, Company, Job, Resume, User
 
 company_bp = Blueprint("company", __name__, url_prefix="/company")
 
@@ -65,7 +65,27 @@ def effective_job_status(job):
     return job.status
 
 
-def validate_job_form(form):
+def _category_names(category_type, current_value=None):
+    names = [
+        name
+        for (name,) in Category.query.with_entities(Category.name)
+        .filter(Category.type == category_type)
+        .order_by(Category.name.asc())
+        .all()
+    ]
+    if current_value and current_value not in names:
+        names.append(current_value)
+    return names
+
+
+def job_form_options(job=None):
+    return {
+        "regions": _category_names("region", job.region if job else None),
+        "industries": _category_names("industry", job.industry if job else None),
+    }
+
+
+def validate_job_form(form, regions, industries):
     title = form.get("title", "").strip()
     content = form.get("content", "").strip()
     region = form.get("region", "").strip()
@@ -81,10 +101,10 @@ def validate_job_form(form):
         errors.append("공고 내용을 입력해 주세요.")
     elif len(content) > 10000:
         errors.append("공고 내용은 10,000자 이하여야 합니다.")
-    if len(region) > 80:
-        errors.append("지역은 80자 이하여야 합니다.")
-    if len(industry) > 80:
-        errors.append("업종은 80자 이하여야 합니다.")
+    if region and region not in regions:
+        errors.append("지역은 등록된 선택지 중에서 선택해 주세요.")
+    if industry and industry not in industries:
+        errors.append("업종은 등록된 선택지 중에서 선택해 주세요.")
 
     deadline = None
     if deadline_text:
@@ -137,8 +157,13 @@ def dashboard(company, user):
 @company_bp.route("/jobs/new", methods=["GET", "POST"])
 @company_required
 def job_new(company, user):
+    options = job_form_options()
     if request.method == "POST":
-        values, errors = validate_job_form(request.form)
+        values, errors = validate_job_form(
+            request.form,
+            options["regions"],
+            options["industries"],
+        )
         if not errors:
             job = Job(company_id=company.company_id, status="pending", **values)
             db.session.add(job)
@@ -153,7 +178,13 @@ def job_new(company, user):
         for error in errors:
             flash(error, "error")
 
-    return render_template("company/job_form.html", job=None, page_title="공고 등록")
+    return render_template(
+        "company/job_form.html",
+        job=None,
+        page_title="공고 등록",
+        regions=options["regions"],
+        industries=options["industries"],
+    )
 
 
 @company_bp.route("/jobs/<int:job_id>/edit", methods=["GET", "POST"])
@@ -167,8 +198,13 @@ def job_edit(company, user, job_id):
         flash("마감된 공고는 수정할 수 없습니다.", "error")
         return redirect(url_for("company.dashboard"))
 
+    options = job_form_options(job)
     if request.method == "POST":
-        values, errors = validate_job_form(request.form)
+        values, errors = validate_job_form(
+            request.form,
+            options["regions"],
+            options["industries"],
+        )
         if not errors:
             for field, value in values.items():
                 setattr(job, field, value)
@@ -185,7 +221,13 @@ def job_edit(company, user, job_id):
         for error in errors:
             flash(error, "error")
 
-    return render_template("company/job_form.html", job=job, page_title="공고 수정")
+    return render_template(
+        "company/job_form.html",
+        job=job,
+        page_title="공고 수정",
+        regions=options["regions"],
+        industries=options["industries"],
+    )
 
 
 @company_bp.post("/jobs/<int:job_id>/close")

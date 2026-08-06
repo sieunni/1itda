@@ -824,8 +824,9 @@ body {
 .company-form, .company-panel { padding: 28px; background: #fff; border: 1px solid var(--color-border); border-radius: 12px; }
 .company-form { display: flex; flex-direction: column; gap: 20px; }
 .company-form-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
-.company-form textarea, .company-filter select, .company-status-form select { padding: 12px 14px; color: var(--color-text); background: #fff; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; }
-.company-form textarea:focus { border-color: var(--color-primary); outline: none; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12); }
+.company-form select, .company-form textarea, .company-filter select, .company-status-form select { padding: 12px 14px; color: var(--color-text); background: #fff; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; }
+.company-form select { width: 100%; min-height: 48px; }
+.company-form select:focus, .company-form textarea:focus { border-color: var(--color-primary); outline: none; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12); }
 .company-form-actions { justify-content: flex-end; }
 .company-form-actions button, .company-status-form button { border: 0; cursor: pointer; }
 .company-filter { display: flex; align-items: center; gap: 10px; }

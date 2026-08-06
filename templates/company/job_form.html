@@ -9,8 +9,26 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="form-group"><label for="title">공고 제목 *</label><input id="title" name="title" maxlength="200" required value="{{ request.form.get('title', job.title if job else '') }}"></div>
     <div class="company-form-row">
-      <div class="form-group"><label for="region">지역</label><input id="region" name="region" maxlength="80" value="{{ request.form.get('region', job.region if job and job.region else '') }}"></div>
-      <div class="form-group"><label for="industry">업종</label><input id="industry" name="industry" maxlength="80" value="{{ request.form.get('industry', job.industry if job and job.industry else '') }}"></div>
+      {% set selected_region = request.form.get('region', job.region if job and job.region else '') %}
+      {% set selected_industry = request.form.get('industry', job.industry if job and job.industry else '') %}
+      <div class="form-group">
+        <label for="region">지역</label>
+        <select id="region" name="region">
+          <option value="">지역 선택</option>
+          {% for region in regions %}
+            <option value="{{ region }}" {% if selected_region == region %}selected{% endif %}>{{ region }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="industry">업종</label>
+        <select id="industry" name="industry">
+          <option value="">업종 선택</option>
+          {% for industry in industries %}
+            <option value="{{ industry }}" {% if selected_industry == industry %}selected{% endif %}>{{ industry }}</option>
+          {% endfor %}
+        </select>
+      </div>
       <div class="form-group"><label for="deadline">마감일</label><input type="date" id="deadline" name="deadline" value="{{ request.form.get('deadline', job.deadline.isoformat() if job and job.deadline else '') }}"></div>
     </div>
     <div class="form-group"><label for="content">공고 내용 *</label><textarea id="content" name="content" maxlength="10000" rows="14" required>{{ request.form.get('content', job.content if job else '') }}</textarea></div>
