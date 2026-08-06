@@ -226,9 +226,17 @@ def resolve_report(admin, report_id):
         flash("처리 방법을 선택해 주세요.", "error")
         return redirect(url_for("admin.reports"))
 
+    success_message = "신고를 처리했습니다."
+    if decision == "reviewed" and report.target_type == "job":
+        reported_job = db.session.get(Job, report.target_id)
+        if reported_job is not None:
+            reported_job.status = "blocked"
+            log_action(admin, "block", "job", reported_job.job_id)
+            success_message = "신고를 확인 처리하고 공고를 목록에서 숨겼습니다."
+
     report.status = decision
     log_action(admin, f"report_{decision}", report.target_type, report.target_id)
-    _commit("신고를 처리했습니다.", "처리하지 못했습니다. 잠시 후 다시 시도해 주세요.")
+    _commit(success_message, "처리하지 못했습니다. 잠시 후 다시 시도해 주세요.")
     return redirect(url_for("admin.reports", status=request.args.get("status", "pending")))
 
 
