@@ -902,6 +902,24 @@ body {
 .admin-message-success { color: #065f46; background: #d1fae5; }
 .admin-message-error { color: #991b1b; background: #fee2e2; }
 
+/* 테이블 셀에 flex가 직접 적용되면 행 구분선이 끊기므로 셀 구조를 유지한다. */
+td.admin-actions,
+td.company-actions {
+  display: table-cell;
+  white-space: nowrap;
+}
+
+td.admin-actions form,
+td.company-actions form {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+td.admin-actions > * + *,
+td.company-actions > * + * {
+  margin-left: 10px;
+}
+
 @media (max-width: 720px) {
   .admin-page-header { align-items: flex-start; flex-direction: column; }
   .admin-detail-grid { grid-template-columns: 1fr; }
