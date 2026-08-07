@@ -19,9 +19,10 @@ from app import app
 from extensions import db
 from models import Company, Job, User
 
-COMPANY_EMAIL = "company.detail.test@1itda.local"
-JOBSEEKER_EMAIL = "jobseeker.scrap.test@1itda.local"
-TEST_PASSWORD = "Test1234!"
+JOBSEEKER_EMAIL = "test@test.com"
+COMPANY_EMAIL = "co@test.com"
+ADMIN_EMAIL = "admin@test.com"
+TEST_PASSWORD = "test1234"
 
 COMPANY_NAME = "1ITDA 상세테스트 기업"
 COMPANY_DESCRIPTION = "공고 상세 페이지의 기업 소개 영역을 확인하기 위한 테스트 기업입니다."
@@ -146,14 +147,16 @@ def upsert_jobs(company):
 def main():
     with app.app_context():
         company_user = upsert_user(COMPANY_EMAIL, "company", "상세테스트 기업 담당자")
-        upsert_user(JOBSEEKER_EMAIL, "jobseeker", "스크랩테스트 구직자")
+        upsert_user(JOBSEEKER_EMAIL, "jobseeker", "테스트 구직자")
+        upsert_user(ADMIN_EMAIL, "admin", "관리자")
         company = upsert_company(company_user)
         jobs = upsert_jobs(company)
         db.session.commit()
 
         print("Seeded Korean test data.")
-        print(f"company_email={COMPANY_EMAIL}")
         print(f"jobseeker_email={JOBSEEKER_EMAIL}")
+        print(f"company_email={COMPANY_EMAIL}")
+        print(f"admin_email={ADMIN_EMAIL}")
         print(f"password={TEST_PASSWORD}")
         for job in jobs:
             visibility = "public" if job.status == "approved" else "private"
