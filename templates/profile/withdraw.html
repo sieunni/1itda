@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}회원 탈퇴 - 1ITDA{% endblock %}
+
+{% block content %}
+<section class="auth-container">
+  <div class="auth-card">
+    <div class="auth-header">
+      <span class="auth-badge">WITHDRAW</span>
+      <h1>회원 탈퇴</h1>
+      <p>탈퇴 시 계정 정보는 즉시 비활성화되고 개인정보는 파기됩니다.</p>
+    </div>
+
+    <ul class="withdraw-notice">
+      <li>이메일, 이름 등 개인정보는 즉시 파기되며 로그인할 수 없게 됩니다.</li>
+      <li>이미 제출한 지원 내역, 등록한 공고 등 기록은 서비스 운영을 위해 보존됩니다.</li>
+      <li>탈퇴 후에는 되돌릴 수 없습니다.</li>
+    </ul>
+
+    <form method="post" action="{{ url_for('profile.withdraw') }}" class="auth-form">
+      {% if csrf_token is defined %}
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% endif %}
+
+      <div class="form-group">
+        <label for="password">비밀번호 확인</label>
+        <input
+          type="password"
+          id="password"
+          name="password"
+          placeholder="본인 확인을 위해 비밀번호를 입력하세요"
+          maxlength="72"
+          autocomplete="current-password"
+          required
+        >
+      </div>
+
+      <button type="submit" class="auth-submit auth-submit-danger" onclick="return confirm('정말 탈퇴하시겠습니까? 이 작업은 되돌릴 수 없습니다.')">탈퇴하기</button>
+    </form>
+
+    <p class="auth-switch">
+      <a href="{{ url_for('profile.mypage') }}">마이페이지로 돌아가기</a>
+    </p>
+  </div>
+</section>
+{% endblock %}

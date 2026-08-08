@@ -4,6 +4,7 @@ import uuid
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_from_directory, session, url_for
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
+from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
 from extensions import db
@@ -11,6 +12,21 @@ from models import Application, Job, Resume, Scrap, User
 
 profile_bp = Blueprint("profile", __name__)
 ALLOWED_RESUME_EXTENSIONS = {"pdf", "doc", "docx"}
+
+
+def _require_active_user():
+    user_id = session.get("user_id")
+    if not user_id:
+        flash("로그인 후 이용해 주세요.", "error")
+        return None
+
+    user = db.session.get(User, user_id)
+    if not user or not user.is_active:
+        session.clear()
+        flash("사용자 정보를 확인할 수 없습니다.", "error")
+        return None
+
+    return user
 
 
 @profile_bp.post("/mypage/resumes/upload")
@@ -88,15 +104,8 @@ def resume_preview(resume_id):
 
 @profile_bp.route("/mypage", methods=["GET", "POST"])
 def mypage():
-    user_id = session.get("user_id")
-    if not user_id:
-        flash("로그인 후 이용해 주세요.", "error")
-        return redirect(url_for("auth.login"))
-
-    user = db.session.get(User, user_id)
-    if not user or not user.is_active:
-        session.clear()
-        flash("사용자 정보를 확인할 수 없습니다.", "error")
+    user = _require_active_user()
+    if not user:
         return redirect(url_for("auth.login"))
 
     if request.method == "POST":
@@ -175,15 +184,8 @@ def mypage():
 
 @profile_bp.route("/mypage/scraps")
 def my_scraps():
-    user_id = session.get("user_id")
-    if not user_id:
-        flash("로그인 후 이용해 주세요.", "error")
-        return redirect(url_for("auth.login"))
-
-    user = db.session.get(User, user_id)
-    if not user or not user.is_active:
-        session.clear()
-        flash("사용자 정보를 확인할 수 없습니다.", "error")
+    user = _require_active_user()
+    if not user:
         return redirect(url_for("auth.login"))
 
     if user.role != "jobseeker":
@@ -197,3 +199,54 @@ def my_scraps():
         .all()
     )
     return render_template("profile/scraps.html", scraps=scraps)
+
+
+@profile_bp.post("/mypage/password")
+def change_password():
+    user = _require_active_user()
+    if not user:
+        return redirect(url_for("auth.login"))
+
+    current_password = request.form.get("current_password") or ""
+    new_password = request.form.get("new_password") or ""
+    new_password_confirm = request.form.get("new_password_confirm") or ""
+
+    if not check_password_hash(user.password_hash, current_password):
+        flash("현재 비밀번호가 올바르지 않습니다.", "error")
+    elif len(new_password) < 8:
+        flash("새 비밀번호는 8자 이상이어야 합니다.", "error")
+    elif new_password != new_password_confirm:
+        flash("새 비밀번호가 일치하지 않습니다.", "error")
+    elif check_password_hash(user.password_hash, new_password):
+        flash("현재 비밀번호와 다른 비밀번호를 입력해 주세요.", "error")
+    else:
+        user.password_hash = generate_password_hash(new_password)
+        db.session.commit()
+        flash("비밀번호가 변경되었습니다.", "success")
+
+    return redirect(url_for("profile.mypage"))
+
+
+@profile_bp.route("/mypage/withdraw", methods=["GET", "POST"])
+def withdraw():
+    user = _require_active_user()
+    if not user:
+        return redirect(url_for("auth.login"))
+
+    if request.method == "GET":
+        return render_template("profile/withdraw.html")
+
+    password = request.form.get("password") or ""
+    if not check_password_hash(user.password_hash, password):
+        flash("비밀번호가 올바르지 않습니다.", "error")
+        return render_template("profile/withdraw.html"), 400
+
+    user.email = f"withdrawn-{user.user_id}@1itda.local"
+    user.name = None
+    user.password_hash = generate_password_hash(uuid.uuid4().hex)
+    user.is_active = False
+    db.session.commit()
+
+    session.clear()
+    flash("회원 탈퇴가 완료되었습니다. 그동안 이용해 주셔서 감사합니다.", "success")
+    return redirect(url_for("index"))

@@ -315,6 +315,29 @@ body {
   background: var(--color-primary-dark);
 }
 
+.auth-submit-danger {
+  background: #dc2626;
+}
+
+.auth-submit-danger:hover {
+  background: #b91c1c;
+}
+
+.withdraw-notice {
+  margin: 0 0 26px;
+  padding: 16px 18px;
+  color: var(--color-muted);
+  font-size: 0.85rem;
+  background: var(--color-bg);
+  border-radius: 8px;
+  list-style: disc;
+  list-style-position: inside;
+}
+
+.withdraw-notice li + li {
+  margin-top: 6px;
+}
+
 .auth-switch {
   margin: 25px 0 0;
   color: var(--color-muted);
@@ -995,6 +1018,9 @@ td.company-actions > * + * {
 .account-meta dt { color: var(--color-muted); }
 .account-meta dd { font-weight: 700; }
 .profile-card .btn { width: 100%; background: #fff; cursor: pointer; }
+.profile-card-actions { display: flex; flex-direction: column; gap: 10px; }
+.withdraw-link { color: var(--color-muted); font-size: 0.8rem; text-decoration: underline; }
+.withdraw-link:hover { color: #b91c1c; }
 
 .mypage-content { min-width: 0; }
 .mypage-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px; }
