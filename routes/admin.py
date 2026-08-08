@@ -4,7 +4,7 @@ from flask import Blueprint, abort, flash, redirect, render_template, request, s
 from sqlalchemy.exc import SQLAlchemyError
 
 from extensions import db
-from models import AdminActionLog, Category, Company, Job, Report, User
+from models import REPORT_REASON_LABELS, AdminActionLog, Category, Company, Job, Report, User
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -63,7 +63,6 @@ def dashboard(admin):
         "jobseeker_count": User.query.filter_by(role="jobseeker").count(),
         "company_count": User.query.filter_by(role="company").count(),
         "pending_jobs": Job.query.filter_by(status="pending").count(),
-        "unverified_companies": Company.query.filter_by(is_verified=False).count(),
         "pending_reports": Report.query.filter_by(status="pending").count(),
     }
     return render_template("admin/dashboard.html", stats=stats)
@@ -94,41 +93,6 @@ def toggle_user(admin, user_id):
         "회원 상태를 변경하지 못했습니다. 잠시 후 다시 시도해 주세요.",
     )
     return redirect(url_for("admin.users", role=request.args.get("role", "")))
-
-
-@admin_bp.route("/companies")
-@admin_required
-def companies(admin):
-    company_list = (
-        Company.query.join(User, Company.user_id == User.user_id)
-        .order_by(Company.created_at.desc())
-        .all()
-    )
-    return render_template("admin/companies.html", companies=company_list)
-
-
-@admin_bp.post("/companies/<int:company_id>/verify")
-@admin_required
-def verify_company(admin, company_id):
-    company = db.session.get(Company, company_id)
-    if company is None:
-        abort(404)
-    company.is_verified = True
-    log_action(admin, "verify", "company", company.company_id)
-    _commit("기업 인증을 승인했습니다.", "처리하지 못했습니다. 잠시 후 다시 시도해 주세요.")
-    return redirect(url_for("admin.companies"))
-
-
-@admin_bp.post("/companies/<int:company_id>/reject")
-@admin_required
-def reject_company(admin, company_id):
-    company = db.session.get(Company, company_id)
-    if company is None:
-        abort(404)
-    company.is_verified = False
-    log_action(admin, "reject", "company", company.company_id)
-    _commit("기업 인증을 반려했습니다.", "처리하지 못했습니다. 잠시 후 다시 시도해 주세요.")
-    return redirect(url_for("admin.companies"))
 
 
 @admin_bp.route("/jobs")
@@ -207,6 +171,7 @@ def reports(admin):
         reports=report_list,
         status_filter=status_filter,
         status_labels=REPORT_STATUS_LABELS,
+        reason_labels=REPORT_REASON_LABELS,
         reporters=reporters,
         job_targets=job_targets,
         company_targets=company_targets,

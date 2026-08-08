@@ -100,6 +100,16 @@ class Scrap(db.Model):
     job = db.relationship("Job", back_populates="scraps")
 
 
+REPORT_REASON_LABELS = {
+    "false_info": "허위 채용정보",
+    "spam": "중복/스팸성 공고",
+    "excessive_info": "개인정보 과다 요구",
+    "inappropriate": "부적절하거나 차별적인 내용",
+    "fraud_suspected": "채용 사기 의심",
+    "etc": "기타",
+}
+
+
 class Report(db.Model):
     __tablename__ = "reports"
 
@@ -107,7 +117,8 @@ class Report(db.Model):
     reporter_id = db.Column(db.Integer, db.ForeignKey("users.user_id"), nullable=False)
     target_type = db.Column(db.String(20), nullable=False)  # job / company / user
     target_id = db.Column(db.Integer, nullable=False)
-    reason = db.Column(db.Text)
+    reason_category = db.Column(db.String(30))  # REPORT_REASON_LABELS 키
+    reason = db.Column(db.Text)  # "기타" 상세 사유 또는 추가 설명
     status = db.Column(db.String(20), nullable=False, default="pending")  # pending/reviewed/rejected
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 

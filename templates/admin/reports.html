@@ -25,21 +25,26 @@
   {% if reports %}
   <div class="admin-table-wrap">
     <table class="admin-table">
-      <thead><tr><th>대상</th><th>신고자</th><th>신고일</th><th>상태</th><th>관리</th></tr></thead>
+      <thead><tr><th>대상</th><th>신고 사유</th><th>신고자</th><th>신고일</th><th>상태</th><th>관리</th></tr></thead>
       <tbody>
       {% for report in reports %}
         <tr>
-          <td>
-            {% if report.target_type == "job" %}
-              {% set target = job_targets.get(report.target_id) %}
-              <strong>[공고] {{ target.title if target else "삭제된 공고" }}</strong>
-            {% elif report.target_type == "company" %}
-              {% set target = company_targets.get(report.target_id) %}
-              <strong>[기업] {{ target.company_name if target else "삭제된 기업" }}</strong>
-            {% else %}
-              {% set target = user_targets.get(report.target_id) %}
-              <strong>[회원] {{ target.email if target else "삭제된 회원" }}</strong>
-            {% endif %}
+          <td class="report-target-cell">
+            {% if report.target_type == "job" -%}
+              {%- set target = job_targets.get(report.target_id) -%}
+              <span class="report-target-tag">공고</span>
+              {%- if target %}<a class="report-target-link" href="{{ url_for('jobs.job_detail', job_id=target.job_id) }}" target="_blank" rel="noopener">{{ target.title }}</a>{% else %}<span class="report-target-deleted">삭제된 공고</span>{% endif -%}
+            {%- elif report.target_type == "company" -%}
+              {%- set target = company_targets.get(report.target_id) -%}
+              <span class="report-target-tag">기업</span>{{ target.company_name if target else "삭제된 기업" }}
+            {%- else -%}
+              {%- set target = user_targets.get(report.target_id) -%}
+              <span class="report-target-tag">회원</span>{{ target.email if target else "삭제된 회원" }}
+            {%- endif %}
+          </td>
+          <td class="report-reason-cell">
+            <span class="report-reason-tag">{{ reason_labels.get(report.reason_category, report.reason_category or "미입력") }}</span>
+            {%- if report.reason %}<p class="report-reason-detail">{{ report.reason }}</p>{% endif %}
           </td>
           <td>{{ reporters.get(report.reporter_id).email if reporters.get(report.reporter_id) else "-" }}</td>
           <td>{{ report.created_at.strftime('%Y-%m-%d') if report.created_at else '-' }}</td>

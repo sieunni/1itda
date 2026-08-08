@@ -21,10 +21,6 @@
       <span class="admin-stat-label">기업 회원</span>
       <strong class="admin-stat-value">{{ stats.company_count }}</strong>
     </a>
-    <a class="admin-stat-card" href="{{ url_for('admin.companies') }}">
-      <span class="admin-stat-label">인증 대기 기업</span>
-      <strong class="admin-stat-value">{{ stats.unverified_companies }}</strong>
-    </a>
     <a class="admin-stat-card" href="{{ url_for('admin.jobs', status='pending') }}">
       <span class="admin-stat-label">승인 대기 공고</span>
       <strong class="admin-stat-value">{{ stats.pending_jobs }}</strong>
@@ -36,10 +32,6 @@
   </div>
 
   <nav class="admin-quick-nav">
-    <a href="{{ url_for('admin.users') }}">회원 관리</a>
-    <a href="{{ url_for('admin.companies') }}">기업 인증 관리</a>
-    <a href="{{ url_for('admin.jobs') }}">공고 관리</a>
-    <a href="{{ url_for('admin.reports') }}">신고 관리</a>
     <a href="{{ url_for('admin.categories') }}">지역·업종 분류 관리</a>
     <a href="{{ url_for('admin.logs') }}">처리 이력</a>
   </nav>

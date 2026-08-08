@@ -108,6 +108,9 @@ def mypage():
     if not user:
         return redirect(url_for("auth.login"))
 
+    if user.role == "admin":
+        return redirect(url_for("admin.dashboard"))
+
     if request.method == "POST":
         name = (request.form.get("name") or "").strip()
         email = (request.form.get("email") or "").strip().lower()
@@ -206,6 +209,8 @@ def change_password():
     user = _require_active_user()
     if not user:
         return redirect(url_for("auth.login"))
+    if user.role == "admin":
+        abort(403)
 
     current_password = request.form.get("current_password") or ""
     new_password = request.form.get("new_password") or ""
@@ -232,6 +237,8 @@ def withdraw():
     user = _require_active_user()
     if not user:
         return redirect(url_for("auth.login"))
+    if user.role == "admin":
+        abort(403)
 
     if request.method == "GET":
         return render_template("profile/withdraw.html")

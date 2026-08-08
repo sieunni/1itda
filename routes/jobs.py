@@ -6,7 +6,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import joinedload
 
 from extensions import db
-from models import Company, Job, Report, Scrap, User
+from models import REPORT_REASON_LABELS, Company, Job, Report, Scrap, User
 
 jobs_bp = Blueprint("jobs", __name__, url_prefix="/jobs")
 
@@ -193,7 +193,8 @@ def job_detail(job_id):
             and job.company
             and job.company.user_id == user.user_id
         )
-        if not is_owner:
+        is_admin = bool(user and user.role == "admin")
+        if not is_owner and not is_admin:
             abort(404)
 
     is_scrapped = False
@@ -218,6 +219,7 @@ def job_detail(job_id):
         job_status=job.status,
         is_scrapped=is_scrapped,
         is_reported=is_reported,
+        report_reason_labels=REPORT_REASON_LABELS,
     )
 
 
@@ -271,6 +273,9 @@ def report_job(job_id):
         flash("로그인이 필요한 기능입니다.", "error")
         return redirect(url_for("auth.login"))
 
+    if user.role != "jobseeker":
+        abort(403)
+
     existing_report = Report.query.filter_by(
         reporter_id=user.user_id,
         target_type="job",
@@ -280,11 +285,23 @@ def report_job(job_id):
         flash("이미 신고한 공고입니다. 관리자가 확인할 예정입니다.", "info")
         return redirect(url_for("jobs.job_detail", job_id=job.job_id))
 
+    reason_category = request.form.get("reason_category", "")
+    reason_detail = (request.form.get("reason_detail") or "").strip()[:500]
+
+    if reason_category not in REPORT_REASON_LABELS:
+        flash("신고 사유를 선택해 주세요.", "error")
+        return redirect(url_for("jobs.job_detail", job_id=job.job_id))
+    if reason_category == "etc" and not reason_detail:
+        flash("기타 사유를 입력해 주세요.", "error")
+        return redirect(url_for("jobs.job_detail", job_id=job.job_id))
+
     db.session.add(
         Report(
             reporter_id=user.user_id,
             target_type="job",
             target_id=job.job_id,
+            reason_category=reason_category,
+            reason=reason_detail or None,
         )
     )
     db.session.commit()

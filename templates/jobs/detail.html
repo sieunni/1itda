@@ -8,7 +8,7 @@
 
   {% if is_preview %}
   <div class="job-preview-notice" role="status">
-    <strong>기업회원 미리보기</strong>
+    <strong>{{ '관리자 미리보기' if current_user and current_user.role == 'admin' else '기업회원 미리보기' }}</strong>
     <span>이 공고는 현재 {{ {'pending':'검토 중', 'blocked':'차단', 'closed':'마감'}.get(job_status, job_status) }} 상태로, 아직 구직자에게 공개되지 않습니다.</span>
   </div>
   {% endif %}
@@ -55,10 +55,14 @@
 
   <div class="job-detail__actions">
     {% if is_preview %}
-      {% if job_status == 'pending' %}
-        <a class="job-action-button job-action-button--primary" href="{{ url_for('company.job_edit', job_id=job.job_id) }}">공고 수정</a>
+      {% if current_user and current_user.role == 'admin' %}
+        <a class="job-action-button job-action-button--secondary" href="{{ url_for('admin.jobs') }}">공고 관리로 이동</a>
+      {% else %}
+        {% if job_status == 'pending' %}
+          <a class="job-action-button job-action-button--primary" href="{{ url_for('company.job_edit', job_id=job.job_id) }}">공고 수정</a>
+        {% endif %}
+        <a class="job-action-button job-action-button--secondary" href="{{ url_for('company.dashboard') }}">공고 관리로 이동</a>
       {% endif %}
-      <a class="job-action-button job-action-button--secondary" href="{{ url_for('company.dashboard') }}">공고 관리로 이동</a>
     {% elif job.is_closed %}
       <button
         type="button"
@@ -66,6 +70,16 @@
         disabled
         aria-disabled="true"
         title="마감된 공고입니다."
+      >
+        지원하기
+      </button>
+    {% elif current_user and current_user.role != "jobseeker" %}
+      <button
+        type="button"
+        class="job-action-button job-action-button--primary"
+        disabled
+        aria-disabled="true"
+        title="구직자 계정만 지원할 수 있습니다."
       >
         지원하기
       </button>
@@ -121,21 +135,56 @@
         >
           신고 완료
         </button>
+      {% elif current_user and current_user.role != "jobseeker" %}
+        <button
+          type="button"
+          class="job-action-button job-action-button--secondary"
+          disabled
+          aria-disabled="true"
+          title="구직자 계정만 신고할 수 있습니다."
+        >
+          공고 신고
+        </button>
       {% else %}
-        <form class="job-action-form" method="post" action="{{ url_for('jobs.report_job', job_id=job.job_id) }}">
-          {% if csrf_token is defined %}
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          {% endif %}
-          <button
-            type="submit"
-            class="job-action-button job-action-button--report"
-            title="관리자에게 공고를 신고합니다."
-          >
-            공고 신고
-          </button>
-        </form>
+        <details class="report-panel">
+          <summary class="job-action-button job-action-button--report">공고 신고</summary>
+          <form class="report-form" method="post" action="{{ url_for('jobs.report_job', job_id=job.job_id) }}">
+            {% if csrf_token is defined %}
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            {% endif %}
+            <fieldset class="report-reason-group">
+              <legend>신고 사유를 선택해 주세요</legend>
+              {% for value, label in report_reason_labels.items() %}
+              <label class="report-reason-option">
+                <input type="radio" name="reason_category" value="{{ value }}" required>
+                <span>{{ label }}</span>
+              </label>
+              {% endfor %}
+            </fieldset>
+            <div class="form-group report-detail-group" hidden>
+              <label for="reason_detail">기타 사유</label>
+              <textarea id="reason_detail" name="reason_detail" rows="3" maxlength="500" placeholder="신고 사유를 자세히 작성해 주세요."></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary report-submit">신고 접수</button>
+          </form>
+        </details>
       {% endif %}
     {% endif %}
   </div>
 </article>
+
+<script>
+  const reportReasonInputs = document.querySelectorAll('input[name="reason_category"]');
+  const reportDetailGroup = document.querySelector('.report-detail-group');
+  const reportDetailInput = document.getElementById('reason_detail');
+
+  function updateReportDetailField() {
+    const selected = document.querySelector('input[name="reason_category"]:checked');
+    const isEtc = selected && selected.value === 'etc';
+    reportDetailGroup.hidden = !isEtc;
+    reportDetailInput.required = isEtc;
+  }
+
+  reportReasonInputs.forEach((input) => input.addEventListener('change', updateReportDetailField));
+</script>
 {% endblock %}

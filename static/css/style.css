@@ -798,6 +798,82 @@ body {
   opacity: 0.58;
 }
 
+.report-panel {
+  position: relative;
+}
+
+.report-panel summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.report-panel summary::-webkit-details-marker {
+  display: none;
+}
+
+.report-panel[open] summary {
+  color: #7f1d1d;
+  background: #fef2f2;
+}
+
+.report-form {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 20;
+  width: min(360px, 90vw);
+  padding: 18px;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.14);
+}
+
+.report-reason-group {
+  margin: 0 0 14px;
+  padding: 0;
+  border: 0;
+}
+
+.report-reason-group legend {
+  margin-bottom: 10px;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.report-reason-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.report-reason-option input {
+  accent-color: #dc2626;
+}
+
+.report-detail-group {
+  margin-bottom: 14px;
+}
+
+.report-detail-group textarea {
+  width: 100%;
+  padding: 10px 12px;
+  color: var(--color-text);
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  font: inherit;
+  resize: vertical;
+}
+
+.report-submit {
+  width: 100%;
+  cursor: pointer;
+}
+
 @media (max-width: 760px) {
   .jobs-search {
     grid-template-columns: 1fr;
@@ -812,6 +888,13 @@ body {
   .job-action-form,
   .job-action-button {
     width: 100%;
+  }
+
+  .report-form {
+    position: static;
+    width: 100%;
+    margin-top: 10px;
+    box-shadow: none;
   }
 
   .jobs-page__header,
@@ -914,6 +997,15 @@ body {
 .admin-table th { color: var(--color-muted); background: #f8fafc; font-size: 0.82rem; }
 .admin-table tbody tr:last-child td { border-bottom: 0; }
 .admin-table td small { display: block; margin-top: 5px; color: var(--color-muted); }
+
+.report-target-cell { max-width: 320px; }
+.report-target-tag, .report-reason-tag { display: inline-block; margin-right: 6px; padding: 3px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; white-space: nowrap; }
+.report-target-tag { color: var(--color-muted); background: var(--color-bg); }
+.report-reason-tag { color: #991b1b; background: #fef2f2; }
+.report-target-link { color: var(--color-primary); font-weight: 700; text-decoration: none; }
+.report-target-link:hover { text-decoration: underline; }
+.report-target-deleted { color: var(--color-muted); }
+.report-reason-detail { margin: 6px 0 0; color: var(--color-muted); font-size: 0.82rem; overflow-wrap: anywhere; }
 
 .admin-empty { padding: 56px 24px; text-align: center; background: #fff; border: 1px solid var(--color-border); border-radius: 12px; }
 .admin-empty p { margin: 0; color: var(--color-muted); }
