@@ -192,6 +192,32 @@ class ReviewFeatureTest(unittest.TestCase):
             self.assertEqual(report.reason, "abuse")
             self.assertEqual(report.status, "pending")
 
+    def test_author_cannot_report_own_review(self):
+        review_id = self.create_review()
+        self.login_as(self.ids["author"], "jobseeker")
+
+        detail = self.client.get(f"/reviews/{review_id}")
+        self.assertEqual(detail.status_code, 200)
+        self.assertNotIn("신고하기".encode(), detail.data)
+        self.assertEqual(self.client.get(f"/reviews/{review_id}/report").status_code, 403)
+        self.assertEqual(
+            self.client.post(
+                f"/reviews/{review_id}/report",
+                data={"reason": "false_info", "description": "조작된 요청"},
+            ).status_code,
+            403,
+        )
+        with app.app_context():
+            self.assertEqual(ReviewReport.query.count(), 0)
+
+        self.login_as(self.ids["other"], "jobseeker")
+        other_detail = self.client.get(f"/reviews/{review_id}")
+        self.assertIn("신고하기".encode(), other_detail.data)
+        self.assertEqual(
+            self.client.post(f"/reviews/{review_id}/report", data={"reason": "false_info"}).status_code,
+            302,
+        )
+
     def test_duplicate_report_blocked_but_different_users_allowed(self):
         review_id = self.create_review()
         self.login_as(self.ids["other"], "jobseeker")
@@ -201,7 +227,7 @@ class ReviewFeatureTest(unittest.TestCase):
         self.assertEqual(duplicate.status_code, 200)
         self.assertIn("이미 신고한 리뷰입니다.".encode(), duplicate.data)
 
-        self.login_as(self.ids["author"], "jobseeker")
+        self.login_as(self.ids["owner"], "company")
         self.assertEqual(self.client.post(f"/reviews/{review_id}/report",
                                          data={"reason": "privacy"}).status_code, 302)
         with app.app_context():
@@ -234,7 +260,7 @@ class ReviewFeatureTest(unittest.TestCase):
     def test_admin_hide_resolves_all_pending_and_controls_visibility(self):
         review_id = self.create_review()
         first_id = self.create_report(review_id, self.ids["other"])
-        second_id = self.create_report(review_id, self.ids["author"])
+        second_id = self.create_report(review_id, self.ids["owner"])
         self.login_as(self.ids["admin"], "admin")
         self.assertEqual(self.client.post(f"/admin/reports/{first_id}/hide").status_code, 302)
         with app.app_context():
