@@ -5,6 +5,7 @@ from flask import Blueprint, abort, flash, redirect, render_template, request, s
 from sqlalchemy import or_
 from sqlalchemy.orm import joinedload
 
+from choices import INDUSTRY_CHOICES, REGION_CHOICES
 from extensions import db
 from models import REPORT_REASON_LABELS, Company, Job, Report, Scrap, User
 
@@ -113,23 +114,16 @@ def _approved_jobs_query():
     return Job.query.options(joinedload(Job.company)).filter(Job.status == "approved")
 
 
-def _filter_options(column):
-    rows = (
-        Job.query.with_entities(column)
-        .filter(Job.status == "approved", column.isnot(None), column != "")
-        .distinct()
-        .order_by(column.asc())
-        .all()
-    )
-    return [value for (value,) in rows]
-
-
 @jobs_bp.route("", methods=["GET"])
 @jobs_bp.route("/", methods=["GET"])
 def job_list():
     keyword = _clean_text(request.args.get("keyword"), MAX_KEYWORD_LENGTH)
     region = _clean_text(request.args.get("region"), 80)
+    if region not in REGION_CHOICES:
+        region = ""
     industry = _clean_text(request.args.get("industry"), 80)
+    if industry not in INDUSTRY_CHOICES:
+        industry = ""
     page = _parse_page(request.args.get("page"))
 
     query = _approved_jobs_query().outerjoin(Job.company)
@@ -166,8 +160,8 @@ def job_list():
         "jobs/list.html",
         jobs=[_job_to_view(job) for job in jobs],
         filters={"keyword": keyword, "region": region, "industry": industry},
-        regions=_filter_options(Job.region),
-        industries=_filter_options(Job.industry),
+        regions=REGION_CHOICES,
+        industries=INDUSTRY_CHOICES,
         total=total,
         page=page,
         total_pages=total_pages,
