@@ -2,13 +2,34 @@ from functools import wraps
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, session, url_for
 from sqlalchemy.orm import joinedload
+from sqlalchemy.exc import IntegrityError
 
 from extensions import db
-from models import Company, Review, User
+from models import REVIEW_REPORT_REASON_LABELS, Company, Review, ReviewReport, User
 
 reviews_bp = Blueprint("reviews", __name__)
 MAX_TITLE_LENGTH = 200
 MAX_CONTENT_LENGTH = 10000
+MAX_REPORT_DESCRIPTION_LENGTH = 1000
+
+
+def login_required(view):
+    @wraps(view)
+    def wrapped_view(*args, **kwargs):
+        user_id = session.get("user_id")
+        if not user_id:
+            flash("로그인이 필요합니다.", "error")
+            return redirect(url_for("auth.login"))
+        user = db.session.get(User, user_id)
+        if user is None:
+            session.clear()
+            flash("로그인이 필요합니다.", "error")
+            return redirect(url_for("auth.login"))
+        if not user.is_active:
+            abort(403)
+        return view(user, *args, **kwargs)
+
+    return wrapped_view
 
 
 def jobseeker_required(view):
@@ -30,13 +51,13 @@ def jobseeker_required(view):
     return wrapped_view
 
 
-def review_or_404(review_id):
+def review_or_404(review_id, allow_hidden=False):
     review = (
         Review.query.options(joinedload(Review.author), joinedload(Review.company))
         .filter(Review.review_id == review_id)
         .first()
     )
-    if review is None:
+    if review is None or (review.is_hidden and not allow_hidden):
         abort(404)
     return review
 
@@ -86,7 +107,9 @@ def review_list():
     companies = Company.query.order_by(Company.company_name.asc()).all()
     company_id_text = (request.args.get("company_id") or "").strip()
     selected_company = None
-    query = Review.query.options(joinedload(Review.author), joinedload(Review.company))
+    query = Review.query.options(joinedload(Review.author), joinedload(Review.company)).filter(
+        Review.is_hidden.is_(False)
+    )
     if company_id_text:
         try:
             company_id = int(company_id_text)
@@ -105,16 +128,71 @@ def company_reviews(company_id):
     company = db.session.get(Company, company_id)
     if company is None:
         abort(404)
-    reviews = (Review.query.options(joinedload(Review.author)).filter(Review.company_id == company_id)
+    reviews = (Review.query.options(joinedload(Review.author)).filter(
+        Review.company_id == company_id, Review.is_hidden.is_(False))
                .order_by(Review.created_at.desc(), Review.review_id.desc()).all())
-    average_rating = db.session.query(db.func.avg(Review.rating)).filter(Review.company_id == company_id).scalar()
+    average_rating = db.session.query(db.func.avg(Review.rating)).filter(
+        Review.company_id == company_id, Review.is_hidden.is_(False)).scalar()
     return render_template("reviews/company_list.html", company=company, reviews=reviews,
                            average_rating=float(average_rating) if average_rating is not None else None)
 
 
 @reviews_bp.get("/reviews/<int:review_id>")
 def review_detail(review_id):
-    return render_template("reviews/detail.html", review=review_or_404(review_id))
+    user_id = session.get("user_id")
+    user = db.session.get(User, user_id) if user_id else None
+    allow_hidden = bool(user and user.is_active and user.role == "admin")
+    return render_template(
+        "reviews/detail.html",
+        review=review_or_404(review_id, allow_hidden=allow_hidden),
+    )
+
+
+@reviews_bp.route("/reviews/<int:review_id>/report", methods=["GET", "POST"])
+@login_required
+def review_report(user, review_id):
+    review = review_or_404(review_id)
+    existing = ReviewReport.query.filter_by(
+        reporter_id=user.user_id,
+        review_id=review.review_id,
+    ).first()
+    if existing is not None:
+        flash("이미 신고한 리뷰입니다.", "info")
+        return redirect(url_for("reviews.review_detail", review_id=review.review_id))
+
+    if request.method == "POST":
+        reason = (request.form.get("reason") or "").strip()
+        description = (request.form.get("description") or "").strip()
+        errors = []
+        if reason not in REVIEW_REPORT_REASON_LABELS:
+            errors.append("신고 사유를 선택해 주세요.")
+        if len(description) > MAX_REPORT_DESCRIPTION_LENGTH:
+            errors.append(f"상세 내용은 {MAX_REPORT_DESCRIPTION_LENGTH:,}자 이하여야 합니다.")
+        if not errors:
+            db.session.add(
+                ReviewReport(
+                    review_id=review.review_id,
+                    reporter_id=user.user_id,
+                    reason=reason,
+                    description=description or None,
+                )
+            )
+            try:
+                db.session.commit()
+            except IntegrityError:
+                db.session.rollback()
+                flash("이미 신고한 리뷰입니다.", "info")
+            else:
+                flash("리뷰 신고가 접수되었습니다.", "success")
+            return redirect(url_for("reviews.review_detail", review_id=review.review_id))
+        for error in errors:
+            flash(error, "error")
+
+    return render_template(
+        "reviews/report_form.html",
+        review=review,
+        reason_labels=REVIEW_REPORT_REASON_LABELS,
+    )
 
 
 @reviews_bp.route("/reviews/new", methods=["GET", "POST"])

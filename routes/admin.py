@@ -1,15 +1,34 @@
 from functools import wraps
+from datetime import datetime
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, session, url_for
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import case
+from sqlalchemy.orm import joinedload
 
 from extensions import db
-from models import REPORT_REASON_LABELS, AdminActionLog, Company, Job, Report, User
+from models import (
+    REPORT_REASON_LABELS,
+    REVIEW_REPORT_REASON_LABELS,
+    AdminActionLog,
+    Company,
+    Job,
+    Report,
+    Review,
+    ReviewReport,
+    User,
+)
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
 JOB_STATUS_LABELS = {"pending": "승인 대기", "approved": "공개 중", "blocked": "차단", "closed": "마감"}
 REPORT_STATUS_LABELS = {"pending": "미처리", "reviewed": "확인 완료", "rejected": "반려"}
+REVIEW_REPORT_STATUS_LABELS = {
+    "": "전체",
+    "pending": "처리 대기",
+    "dismissed": "기각",
+    "hidden": "숨김",
+}
 
 
 def admin_required(view):
@@ -64,7 +83,10 @@ def dashboard(admin):
         "pending_jobs": Job.query.filter_by(status="pending").count(),
         "approved_jobs": Job.query.filter_by(status="approved").count(),
         "blocked_jobs": Job.query.filter_by(status="blocked").count(),
-        "pending_reports": Report.query.filter_by(status="pending").count(),
+        "pending_reports": (
+            Report.query.filter_by(status="pending").count()
+            + ReviewReport.query.filter_by(status="pending").count()
+        ),
     }
     recent_jobs = Job.query.order_by(Job.created_at.desc()).limit(5).all()
     recent_reports = Report.query.order_by(Report.created_at.desc()).limit(5).all()
@@ -170,10 +192,37 @@ def unblock_job(admin, job_id):
 @admin_required
 def reports(admin):
     status_filter = request.args.get("status", "pending")
+    allowed_filters = set(REVIEW_REPORT_STATUS_LABELS) | set(REPORT_STATUS_LABELS)
+    if status_filter not in allowed_filters:
+        status_filter = "pending"
+
+    review_report_query = ReviewReport.query.options(
+        joinedload(ReviewReport.review).joinedload(Review.company),
+        joinedload(ReviewReport.review).joinedload(Review.author),
+        joinedload(ReviewReport.reporter),
+    )
+    if status_filter in ("pending", "dismissed", "hidden"):
+        review_report_query = review_report_query.filter_by(status=status_filter)
+        review_reports = review_report_query.order_by(ReviewReport.created_at.desc()).all()
+    elif status_filter == "":
+        review_reports = review_report_query.order_by(
+            case((ReviewReport.status == "pending", 0), else_=1),
+            ReviewReport.created_at.desc(),
+        ).all()
+    else:
+        review_reports = []
+
     query = Report.query
     if status_filter in REPORT_STATUS_LABELS:
         query = query.filter_by(status=status_filter)
-    report_list = query.order_by(Report.created_at.desc()).all()
+        report_list = query.order_by(Report.created_at.desc()).all()
+    elif status_filter == "":
+        report_list = query.order_by(
+            case((Report.status == "pending", 0), else_=1),
+            Report.created_at.desc(),
+        ).all()
+    else:
+        report_list = []
 
     reporter_ids = {report.reporter_id for report in report_list}
     job_ids = {report.target_id for report in report_list if report.target_type == "job"}
@@ -188,14 +237,67 @@ def reports(admin):
     return render_template(
         "admin/reports.html",
         reports=report_list,
+        review_reports=review_reports,
         status_filter=status_filter,
-        status_labels=REPORT_STATUS_LABELS,
+        status_labels={**REVIEW_REPORT_STATUS_LABELS, **REPORT_STATUS_LABELS},
         reason_labels=REPORT_REASON_LABELS,
+        review_reason_labels=REVIEW_REPORT_REASON_LABELS,
         reporters=reporters,
         job_targets=job_targets,
         company_targets=company_targets,
         user_targets=user_targets,
     )
+
+
+def review_report_or_404(report_id):
+    report = db.session.get(ReviewReport, report_id)
+    if report is None:
+        abort(404)
+    return report
+
+
+@admin_bp.post("/reports/<int:report_id>/dismiss")
+@admin_required
+def dismiss_review_report(admin, report_id):
+    report = review_report_or_404(report_id)
+    if report.status != "pending":
+        flash("이미 처리된 신고입니다.", "info")
+        return redirect(url_for("admin.reports", status=request.args.get("status", "pending")))
+
+    report.status = "dismissed"
+    report.handled_at = datetime.utcnow()
+    report.handled_by = admin.user_id
+    log_action(admin, "review_report_dismiss", "review", report.review_id)
+    _commit("리뷰 신고를 기각했습니다.", "신고를 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.")
+    return redirect(url_for("admin.reports", status=request.args.get("status", "pending")))
+
+
+@admin_bp.post("/reports/<int:report_id>/hide")
+@admin_required
+def hide_reported_review(admin, report_id):
+    report = review_report_or_404(report_id)
+    if report.status != "pending":
+        flash("이미 처리된 신고입니다.", "info")
+        return redirect(url_for("admin.reports", status=request.args.get("status", "pending")))
+
+    review = db.session.get(Review, report.review_id)
+    if review is None:
+        abort(404)
+
+    handled_at = datetime.utcnow()
+    review.is_hidden = True
+    pending_reports = ReviewReport.query.filter_by(review_id=review.review_id, status="pending").all()
+    for pending_report in pending_reports:
+        pending_report.status = "hidden"
+        pending_report.handled_at = handled_at
+        pending_report.handled_by = admin.user_id
+
+    log_action(admin, "review_hide", "review", review.review_id)
+    _commit(
+        "리뷰를 숨기고 연결된 미처리 신고를 모두 처리했습니다.",
+        "신고를 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+    )
+    return redirect(url_for("admin.reports", status=request.args.get("status", "pending")))
 
 
 @admin_bp.post("/reports/<int:report_id>/resolve")

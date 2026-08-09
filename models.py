@@ -16,6 +16,16 @@ class User(db.Model):
 
     company = db.relationship("Company", back_populates="owner", uselist=False)
     reviews = db.relationship("Review", back_populates="author")
+    review_reports = db.relationship(
+        "ReviewReport",
+        back_populates="reporter",
+        foreign_keys="ReviewReport.reporter_id",
+    )
+    handled_review_reports = db.relationship(
+        "ReviewReport",
+        back_populates="handler",
+        foreign_keys="ReviewReport.handled_by",
+    )
 
 
 class Company(db.Model):
@@ -45,11 +55,43 @@ class Review(db.Model):
     rating = db.Column(db.Integer, nullable=False)
     title = db.Column(db.String(200), nullable=False)
     content = db.Column(db.Text, nullable=False)
+    is_hidden = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     author = db.relationship("User", back_populates="reviews")
     company = db.relationship("Company", back_populates="reviews")
+    review_reports = db.relationship("ReviewReport", back_populates="review")
+
+
+REVIEW_REPORT_REASON_LABELS = {
+    "false_info": "허위 정보",
+    "abuse": "욕설/비방",
+    "advertising": "광고",
+    "privacy": "개인정보 노출",
+    "etc": "기타",
+}
+
+
+class ReviewReport(db.Model):
+    __tablename__ = "review_reports"
+    __table_args__ = (
+        db.UniqueConstraint("reporter_id", "review_id", name="uq_review_reporter_review"),
+    )
+
+    report_id = db.Column(db.Integer, primary_key=True)
+    review_id = db.Column(db.Integer, db.ForeignKey("reviews.review_id"), nullable=False)
+    reporter_id = db.Column(db.Integer, db.ForeignKey("users.user_id"), nullable=False)
+    reason = db.Column(db.String(30), nullable=False)
+    description = db.Column(db.Text)
+    status = db.Column(db.String(20), nullable=False, default="pending")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    handled_at = db.Column(db.DateTime)
+    handled_by = db.Column(db.Integer, db.ForeignKey("users.user_id"))
+
+    review = db.relationship("Review", back_populates="review_reports")
+    reporter = db.relationship("User", back_populates="review_reports", foreign_keys=[reporter_id])
+    handler = db.relationship("User", back_populates="handled_review_reports", foreign_keys=[handled_by])
 
 
 class Job(db.Model):
