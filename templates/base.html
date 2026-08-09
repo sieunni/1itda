@@ -13,7 +13,7 @@
       <ul class="nav-links">
         <li><a href="{{ url_for('reviews.review_list') }}">기업 리뷰</a></li>
         <li><a href="{{ url_for('jobs.job_list') }}">채용공고</a></li>
-        {% if not current_user or current_user.role == "company" %}
+        {% if current_user and current_user.role == "company" %}
         <li><a href="{{ url_for('company.dashboard') }}">기업</a></li>
         {% endif %}
         {% if current_user %}
