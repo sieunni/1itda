@@ -1,75 +1,35 @@
 {% extends "base.html" %}
-
 {% block title %}신고 관리 - 1ITDA{% endblock %}
-
 {% block content %}
 <section class="admin-page">
-  <div class="admin-page-header">
-    <div>
-      <p class="admin-eyebrow">REPORTS</p>
-      <h1>신고 관리</h1>
-      <p>신고된 공고·기업·회원을 확인하고 처리 결과를 기록합니다.</p>
-    </div>
-    <a class="btn btn-outline" href="{{ url_for('admin.dashboard') }}">대시보드</a>
-  </div>
+  <div class="admin-page-header"><div><p class="admin-eyebrow">REPORTS</p><h1>신고 관리</h1><p>기업 리뷰와 기존 서비스 신고를 확인하고 처리 결과를 기록합니다.</p></div><a class="btn btn-outline" href="{{ url_for('admin.dashboard') }}">대시보드</a></div>
+  <form class="admin-filter" method="get"><label for="status">상태</label><select id="status" name="status" onchange="this.form.submit()">{% for value, label in status_labels.items() %}<option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></form>
 
-  <form class="admin-filter" method="get">
-    <label for="status">상태</label>
-    <select id="status" name="status" onchange="this.form.submit()">
-      {% for value, label in status_labels.items() %}
-      <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
-      {% endfor %}
-    </select>
-  </form>
+  <div class="admin-section-heading"><h2>기업 리뷰 신고</h2><span>{{ review_reports|length }}건</span></div>
+  {% if review_reports %}
+  <div class="admin-table-wrap"><table class="admin-table review-report-table">
+    <thead><tr><th>신고</th><th>리뷰·기업</th><th>작성자·신고자</th><th>사유</th><th>신고일</th><th>상태</th><th>관리</th></tr></thead>
+    <tbody>{% for report in review_reports %}<tr>
+      <td>#{{ report.report_id }}</td>
+      <td><strong>{{ report.review.title }}</strong><small>{{ report.review.company.company_name }}</small></td>
+      <td><span>작성자: {{ report.review.author.name or report.review.author.email }}</span><small>신고자: {{ report.reporter.name or report.reporter.email }}</small></td>
+      <td><span class="report-reason-tag">{{ review_reason_labels.get(report.reason, report.reason) }}</span>{% if report.description %}<p class="report-reason-detail">{{ report.description }}</p>{% endif %}</td>
+      <td>{{ report.created_at.strftime('%Y-%m-%d') }}</td>
+      <td><span class="status-badge status-{{ report.status }}">{{ status_labels.get(report.status, report.status) }}</span>{% if report.handled_at %}<small>{{ report.handled_at.strftime('%Y-%m-%d') }} 처리</small>{% endif %}</td>
+      <td class="admin-actions"><a href="{{ url_for('reviews.review_detail', review_id=report.review_id) }}" target="_blank" rel="noopener">리뷰 보기</a>{% if report.status == 'pending' %}<form method="post" action="{{ url_for('admin.dismiss_review_report', report_id=report.report_id, status=status_filter) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit">신고 기각</button></form><form method="post" action="{{ url_for('admin.hide_reported_review', report_id=report.report_id, status=status_filter) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="admin-danger-action" type="submit">리뷰 숨김</button></form>{% endif %}</td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}<div class="admin-empty"><p>조건에 해당하는 기업 리뷰 신고가 없습니다.</p></div>{% endif %}
 
+  <div class="admin-section-heading"><h2>기존 서비스 신고</h2><span>{{ reports|length }}건</span></div>
   {% if reports %}
-  <div class="admin-table-wrap">
-    <table class="admin-table">
-      <thead><tr><th>대상</th><th>신고 사유</th><th>신고자</th><th>신고일</th><th>상태</th><th>관리</th></tr></thead>
-      <tbody>
-      {% for report in reports %}
-        <tr>
-          <td class="report-target-cell">
-            {% if report.target_type == "job" -%}
-              {%- set target = job_targets.get(report.target_id) -%}
-              <span class="report-target-tag">공고</span>
-              {%- if target %}<a class="report-target-link" href="{{ url_for('jobs.job_detail', job_id=target.job_id) }}" target="_blank" rel="noopener">{{ target.title }}</a>{% else %}<span class="report-target-deleted">삭제된 공고</span>{% endif -%}
-            {%- elif report.target_type == "company" -%}
-              {%- set target = company_targets.get(report.target_id) -%}
-              <span class="report-target-tag">기업</span>{{ target.company_name if target else "삭제된 기업" }}
-            {%- else -%}
-              {%- set target = user_targets.get(report.target_id) -%}
-              <span class="report-target-tag">회원</span>{{ target.email if target else "삭제된 회원" }}
-            {%- endif %}
-          </td>
-          <td class="report-reason-cell">
-            <span class="report-reason-tag">{{ reason_labels.get(report.reason_category, report.reason_category or "미입력") }}</span>
-            {%- if report.reason %}<p class="report-reason-detail">{{ report.reason }}</p>{% endif %}
-          </td>
-          <td>{{ reporters.get(report.reporter_id).email if reporters.get(report.reporter_id) else "-" }}</td>
-          <td>{{ report.created_at.strftime('%Y-%m-%d') if report.created_at else '-' }}</td>
-          <td><span class="status-badge {{ 'status-approved' if report.status == 'reviewed' else 'status-blocked' if report.status == 'rejected' else 'status-pending' }}">{{ status_labels.get(report.status, report.status) }}</span></td>
-          <td class="admin-actions">
-            {% if report.status == "pending" %}
-            <form method="post" action="{{ url_for('admin.resolve_report', report_id=report.report_id, status=status_filter) }}">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <input type="hidden" name="decision" value="reviewed">
-              <button type="submit">확인 처리</button>
-            </form>
-            <form method="post" action="{{ url_for('admin.resolve_report', report_id=report.report_id, status=status_filter) }}">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <input type="hidden" name="decision" value="rejected">
-              <button type="submit">반려</button>
-            </form>
-            {% endif %}
-          </td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% else %}
-  <div class="admin-empty"><p>조건에 해당하는 신고가 없습니다.</p></div>
-  {% endif %}
+  <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>대상</th><th>신고 사유</th><th>신고자</th><th>신고일</th><th>상태</th><th>관리</th></tr></thead><tbody>
+  {% for report in reports %}<tr>
+    <td class="report-target-cell">{% if report.target_type == 'job' %}{% set target = job_targets.get(report.target_id) %}<span class="report-target-tag">공고</span>{% if target %}<a class="report-target-link" href="{{ url_for('jobs.job_detail', job_id=target.job_id) }}" target="_blank" rel="noopener">{{ target.title }}</a>{% else %}<span class="report-target-deleted">삭제된 공고</span>{% endif %}{% elif report.target_type == 'company' %}{% set target = company_targets.get(report.target_id) %}<span class="report-target-tag">기업</span>{{ target.company_name if target else '삭제된 기업' }}{% else %}{% set target = user_targets.get(report.target_id) %}<span class="report-target-tag">회원</span>{{ target.email if target else '삭제된 회원' }}{% endif %}</td>
+    <td class="report-reason-cell"><span class="report-reason-tag">{{ reason_labels.get(report.reason_category, report.reason_category or '미입력') }}</span>{% if report.reason %}<p class="report-reason-detail">{{ report.reason }}</p>{% endif %}</td>
+    <td>{{ reporters.get(report.reporter_id).email if reporters.get(report.reporter_id) else '-' }}</td><td>{{ report.created_at.strftime('%Y-%m-%d') if report.created_at else '-' }}</td><td><span class="status-badge {{ 'status-approved' if report.status == 'reviewed' else 'status-blocked' if report.status == 'rejected' else 'status-pending' }}">{{ status_labels.get(report.status, report.status) }}</span></td>
+    <td class="admin-actions">{% if report.status == 'pending' %}<form method="post" action="{{ url_for('admin.resolve_report', report_id=report.report_id, status=status_filter) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="decision" value="reviewed"><button type="submit">확인 처리</button></form><form method="post" action="{{ url_for('admin.resolve_report', report_id=report.report_id, status=status_filter) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="decision" value="rejected"><button type="submit">반려</button></form>{% endif %}</td>
+  </tr>{% endfor %}</tbody></table></div>
+  {% else %}<div class="admin-empty"><p>조건에 해당하는 기존 서비스 신고가 없습니다.</p></div>{% endif %}
 </section>
 {% endblock %}

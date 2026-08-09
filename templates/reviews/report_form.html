@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}리뷰 신고 | 1ITDA{% endblock %}
+{% block content %}
+<section class="review-form-page">
+  <a class="review-back" href="{{ url_for('reviews.review_detail', review_id=review.review_id) }}">← 리뷰로 돌아가기</a>
+  <div class="review-form-card">
+    <header><span>REPORT REVIEW</span><h1>리뷰 신고</h1><p><strong>{{ review.company.company_name }}</strong>의 “{{ review.title }}” 리뷰를 신고합니다.</p></header>
+    <form method="post" class="review-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-group"><label for="reason">신고 사유</label><select id="reason" name="reason" required><option value="">신고 사유를 선택해 주세요</option>{% for value, label in reason_labels.items() %}<option value="{{ value }}" {% if request.form.get('reason') == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+      <div class="form-group"><label for="description">상세 내용 <small>(선택)</small></label><textarea id="description" name="description" maxlength="1000" rows="7" placeholder="신고 내용을 구체적으로 작성해 주세요.">{{ request.form.get('description', '') }}</textarea><small class="review-form-help">최대 1,000자까지 입력할 수 있습니다.</small></div>
+      <div class="review-form-actions"><a class="btn btn-outline" href="{{ url_for('reviews.review_detail', review_id=review.review_id) }}">취소</a><button class="btn btn-primary" type="submit">신고 접수</button></div>
+    </form>
+  </div>
+</section>
+{% endblock %}

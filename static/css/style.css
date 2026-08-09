@@ -53,6 +53,10 @@
 .review-form textarea { width: 100%; resize: vertical; line-height: 1.6; }
 .review-form-actions { display: flex; justify-content: flex-end; gap: 9px; }
 .review-form-actions button { border: 0; font: inherit; cursor: pointer; }
+.review-report-link { align-self: center; margin-right: auto; color: var(--color-muted); font-size: .82rem; text-decoration: underline; }
+.review-report-link:hover { color: #b91c1c; }
+.review-hidden-notice { margin-bottom: 22px; padding: 12px 15px; color: #92400e; background: #fef3c7; border-radius: 8px; font-size: .85rem; }
+.review-form-help { color: var(--color-muted); font-size: .76rem; }
 
 @media (max-width: 650px) {
   .review-page-header, .company-review-header { align-items: stretch; flex-direction: column; }
@@ -1062,6 +1066,13 @@ body {
 .admin-filter { display: flex; align-items: center; gap: 10px; }
 .admin-filter label { font-weight: 700; }
 .admin-filter select { padding: 10px 12px; color: var(--color-text); background: #fff; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; }
+.admin-section-heading { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
+.admin-section-heading h2 { margin: 0; font-size: 1.1rem; }
+.admin-section-heading span { color: var(--color-muted); font-size: .82rem; }
+.review-report-table strong { display: block; max-width: 220px; overflow-wrap: anywhere; }
+.admin-danger-action { color: #b91c1c !important; }
+.status-dismissed { color: #4b5563; background: #e5e7eb; }
+.status-hidden { color: #b91c1c; background: #fee2e2; }
 
 .admin-table-wrap { overflow-x: auto; background: #fff; border: 1px solid var(--color-border); border-radius: 12px; }
 .admin-table { width: 100%; border-collapse: collapse; }

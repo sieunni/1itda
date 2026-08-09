@@ -22,6 +22,13 @@ def ensure_schema_compatibility():
         db.session.execute(text("ALTER TABLE reports ADD COLUMN reason_category VARCHAR(30)"))
         db.session.commit()
 
+    review_columns = {column["name"] for column in inspector.get_columns("reviews")}
+    if "is_hidden" not in review_columns:
+        db.session.execute(
+            text("ALTER TABLE reviews ADD COLUMN is_hidden BOOLEAN NOT NULL DEFAULT 0")
+        )
+        db.session.commit()
+
 
 def create_app():
     app = Flask(__name__)
