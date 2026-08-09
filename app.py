@@ -1,4 +1,5 @@
 from flask import Flask, render_template, session
+from sqlalchemy import inspect, text
 
 from config import Config
 from extensions import csrf, db
@@ -9,6 +10,15 @@ from routes.auth import auth_bp
 from routes.company import company_bp
 from routes.jobs import jobs_bp
 from routes.profile import profile_bp
+
+
+def ensure_schema_compatibility():
+    """Apply small, data-preserving schema updates for existing SQLite databases."""
+    inspector = inspect(db.engine)
+    report_columns = {column["name"] for column in inspector.get_columns("reports")}
+    if "reason_category" not in report_columns:
+        db.session.execute(text("ALTER TABLE reports ADD COLUMN reason_category VARCHAR(30)"))
+        db.session.commit()
 
 
 def create_app():
@@ -42,6 +52,7 @@ def create_app():
 
     with app.app_context():
         db.create_all()
+        ensure_schema_compatibility()
 
     return app
 
