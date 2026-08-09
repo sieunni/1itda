@@ -29,6 +29,17 @@ def ensure_schema_compatibility():
         )
         db.session.commit()
 
+    job_columns = {column["name"] for column in inspector.get_columns("jobs")}
+    if "updated_at" not in job_columns:
+        db.session.execute(text("ALTER TABLE jobs ADD COLUMN updated_at DATETIME"))
+        db.session.execute(
+            text(
+                "UPDATE jobs "
+                "SET updated_at = COALESCE(updated_at, created_at, CURRENT_TIMESTAMP)"
+            )
+        )
+        db.session.commit()
+
 
 def create_app():
     app = Flask(__name__)

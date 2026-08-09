@@ -530,7 +530,7 @@ body {
 
 .jobs-search {
   display: grid;
-  grid-template-columns: minmax(240px, 2fr) minmax(140px, 1fr) minmax(140px, 1fr) auto;
+  grid-template-columns: minmax(240px, 2fr) minmax(140px, 1fr) minmax(140px, 1fr) minmax(120px, .75fr) auto;
   gap: 14px;
   align-items: end;
   padding: 20px;
@@ -543,6 +543,10 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.jobs-search__field--sort {
+  min-width: 120px;
 }
 
 .jobs-search__field label {

@@ -2,7 +2,7 @@ from datetime import date, datetime
 from math import ceil
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, session, url_for
-from sqlalchemy import or_
+from sqlalchemy import case, or_
 from sqlalchemy.orm import joinedload
 
 from choices import INDUSTRY_CHOICES, REGION_CHOICES
@@ -13,6 +13,12 @@ jobs_bp = Blueprint("jobs", __name__, url_prefix="/jobs")
 
 PAGE_SIZE = 12
 MAX_KEYWORD_LENGTH = 60
+SORT_OPTIONS = (
+    ("latest", "최신순"),
+    ("updated", "수정순"),
+    ("deadline", "마감순"),
+)
+SORT_VALUES = {value for value, _label in SORT_OPTIONS}
 
 
 def _clean_text(value, max_length):
@@ -114,6 +120,21 @@ def _approved_jobs_query():
     return Job.query.options(joinedload(Job.company)).filter(Job.status == "approved")
 
 
+def _job_order_by(sort):
+    if sort == "updated":
+        return (Job.updated_at.desc(), Job.created_at.desc(), Job.job_id.desc())
+    if sort == "deadline":
+        deadline_is_empty = case((Job.deadline.is_(None), 1), else_=0)
+        return (
+            deadline_is_empty.asc(),
+            Job.deadline.asc(),
+            Job.created_at.desc(),
+            Job.job_id.desc(),
+        )
+
+    return (Job.created_at.desc(), Job.job_id.desc())
+
+
 @jobs_bp.route("", methods=["GET"])
 @jobs_bp.route("/", methods=["GET"])
 def job_list():
@@ -124,6 +145,9 @@ def job_list():
     industry = _clean_text(request.args.get("industry"), 80)
     if industry not in INDUSTRY_CHOICES:
         industry = ""
+    sort = _clean_text(request.args.get("sort", "latest"), 20)
+    if sort not in SORT_VALUES:
+        sort = "latest"
     page = _parse_page(request.args.get("page"))
 
     query = _approved_jobs_query().outerjoin(Job.company)
@@ -150,7 +174,7 @@ def job_list():
         page = total_pages
 
     jobs = (
-        query.order_by(Job.created_at.desc())
+        query.order_by(*_job_order_by(sort))
         .offset((page - 1) * PAGE_SIZE)
         .limit(PAGE_SIZE)
         .all()
@@ -159,9 +183,10 @@ def job_list():
     return render_template(
         "jobs/list.html",
         jobs=[_job_to_view(job) for job in jobs],
-        filters={"keyword": keyword, "region": region, "industry": industry},
+        filters={"keyword": keyword, "region": region, "industry": industry, "sort": sort},
         regions=REGION_CHOICES,
         industries=INDUSTRY_CHOICES,
+        sort_options=SORT_OPTIONS,
         total=total,
         page=page,
         total_pages=total_pages,

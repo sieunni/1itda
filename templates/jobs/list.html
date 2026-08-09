@@ -42,6 +42,15 @@
       </select>
     </div>
 
+    <div class="jobs-search__field jobs-search__field--sort">
+      <label for="sort">정렬</label>
+      <select id="sort" name="sort" onchange="this.form.submit()">
+        {% for value, label in sort_options %}
+          <option value="{{ value }}" {% if filters.sort == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
     <div class="jobs-search__actions">
       <button type="submit" class="btn btn-primary">검색</button>
       <a class="btn btn-outline" href="{{ url_for('jobs.job_list') }}">초기화</a>
@@ -112,7 +121,7 @@
   {% if total_pages > 1 %}
     <nav class="pagination" aria-label="채용공고 페이지">
       {% if page > 1 %}
-        <a href="{{ url_for('jobs.job_list', keyword=filters.keyword, region=filters.region, industry=filters.industry, page=page - 1) }}">이전</a>
+        <a href="{{ url_for('jobs.job_list', keyword=filters.keyword, region=filters.region, industry=filters.industry, sort=filters.sort, page=page - 1) }}">이전</a>
       {% else %}
         <span class="pagination__disabled">이전</span>
       {% endif %}
@@ -120,7 +129,7 @@
       <span class="pagination__current">{{ page }} / {{ total_pages }}</span>
 
       {% if page < total_pages %}
-        <a href="{{ url_for('jobs.job_list', keyword=filters.keyword, region=filters.region, industry=filters.industry, page=page + 1) }}">다음</a>
+        <a href="{{ url_for('jobs.job_list', keyword=filters.keyword, region=filters.region, industry=filters.industry, sort=filters.sort, page=page + 1) }}">다음</a>
       {% else %}
         <span class="pagination__disabled">다음</span>
       {% endif %}

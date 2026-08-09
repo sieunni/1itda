@@ -106,6 +106,7 @@ class Job(db.Model):
     deadline = db.Column(db.Date)
     status = db.Column(db.String(20), nullable=False, default="pending")  # pending/approved/blocked/closed
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     company = db.relationship("Company", back_populates="jobs")
     applications = db.relationship("Application", back_populates="job")
