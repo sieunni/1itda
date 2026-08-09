@@ -2,13 +2,13 @@ import os
 import uuid
 from datetime import date
 
-from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
-from sqlalchemy.exc import IntegrityError
+from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, session, url_for
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import joinedload
 from werkzeug.utils import secure_filename
 
 from extensions import db
-from models import Application, Job, Resume, User
+from models import Application, ApplicationStatusHistory, Job, Resume, User
 
 applications_bp = Blueprint("applications", __name__)
 
@@ -148,3 +148,48 @@ def my_applications():
         status_counts=status_counts,
         total=base_query.count(),
     )
+
+
+@applications_bp.post("/mypage/applications/<int:application_id>/cancel")
+def cancel_application(application_id):
+    user = _current_user()
+    if not user:
+        flash("로그인이 필요합니다.", "error")
+        return redirect(url_for("auth.login"))
+    if user.role != "jobseeker":
+        abort(403)
+
+    application = Application.query.filter_by(
+        application_id=application_id,
+        user_id=user.user_id,
+    ).first()
+    if application is None:
+        abort(404)
+
+    if application.status == "cancelled":
+        flash("이미 취소된 지원입니다.", "info")
+        return redirect(url_for("applications.my_applications"))
+    if application.status != "submitted":
+        flash("이미 처리된 지원은 취소할 수 없습니다.", "error")
+        return redirect(url_for("applications.my_applications"))
+
+    old_status = application.status
+    application.status = "cancelled"
+    db.session.add(
+        ApplicationStatusHistory(
+            application_id=application.application_id,
+            old_status=old_status,
+            new_status="cancelled",
+            changed_by=user.user_id,
+        )
+    )
+
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        flash("지원을 취소하지 못했습니다. 잠시 후 다시 시도해 주세요.", "error")
+    else:
+        flash("지원이 취소되었습니다.", "success")
+
+    return redirect(url_for("applications.my_applications"))
