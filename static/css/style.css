@@ -1363,8 +1363,12 @@ a.stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(15,
 .application-history__meta dd { max-width: 220px; color: #4b5563; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .application-resume-link { color: var(--color-primary); font-weight: 700; text-decoration: none; }
 .application-resume-link:hover { text-decoration: underline; }
-.application-history__actions { flex: 0 0 auto; }
-.application-history__actions .btn { background: #fff; white-space: nowrap; }
+.application-history__actions { display: flex; flex: 0 0 120px; flex-direction: column; align-items: stretch; gap: 8px; }
+.application-history__actions form { margin: 0; }
+.application-history__actions .btn { display: inline-flex; align-items: center; justify-content: center; width: 100%; min-width: 112px; min-height: 42px; box-sizing: border-box; border: 1px solid transparent; font: inherit; font-weight: 600; text-align: center; white-space: nowrap; cursor: pointer; }
+.application-history__actions .btn-outline { color: var(--color-text); background: #fff; border-color: var(--color-border); }
+.application-history__actions .btn-primary { color: #fff; background: var(--color-primary); }
+.application-history__actions .btn-primary:hover { background: var(--color-primary-dark); }
 .application-unavailable { color: var(--color-muted); font-size: .78rem; }
 .application-history__empty { padding: 64px 24px; background: #fff; border: 1px solid var(--color-border); border-radius: 14px; text-align: center; }
 .application-history__empty > span { color: #93c5fd; font-size: 2.2rem; }
@@ -1375,7 +1379,8 @@ a.stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(15,
   .application-history__header { align-items: flex-start; flex-direction: column; }
   .application-history__header h1 { font-size: 1.6rem; }
   .application-history__item { align-items: stretch; flex-direction: column; gap: 18px; }
-  .application-history__actions .btn { display: block; width: 100%; text-align: center; }
+  .application-history__actions { flex-basis: auto; }
+  .application-history__actions .btn { width: 100%; }
   .application-history__meta { flex-direction: column; }
   .application-history__meta dd { max-width: calc(100vw - 150px); }
 }

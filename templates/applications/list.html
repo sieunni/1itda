@@ -56,6 +56,14 @@
         {% else %}
         <span class="application-unavailable">현재 비공개 공고</span>
         {% endif %}
+        {% if application.status == 'submitted' %}
+        <form method="post" action="{{ url_for('applications.cancel_application', application_id=application.application_id) }}" onsubmit="return confirm('정말 지원을 취소하시겠습니까?');">
+          {% if csrf_token is defined %}
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          {% endif %}
+          <button class="btn btn-primary" type="submit">지원 취소</button>
+        </form>
+        {% endif %}
       </div>
     </article>
     {% endfor %}
