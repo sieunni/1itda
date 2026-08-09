@@ -15,6 +15,7 @@ class User(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     company = db.relationship("Company", back_populates="owner", uselist=False)
+    reviews = db.relationship("Review", back_populates="author")
 
 
 class Company(db.Model):
@@ -29,6 +30,26 @@ class Company(db.Model):
 
     owner = db.relationship("User", back_populates="company")
     jobs = db.relationship("Job", back_populates="company")
+    reviews = db.relationship("Review", back_populates="company")
+
+
+class Review(db.Model):
+    __tablename__ = "reviews"
+    __table_args__ = (
+        db.CheckConstraint("rating >= 1 AND rating <= 5", name="ck_review_rating"),
+    )
+
+    review_id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.user_id"), nullable=False)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.company_id"), nullable=False)
+    rating = db.Column(db.Integer, nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    author = db.relationship("User", back_populates="reviews")
+    company = db.relationship("Company", back_populates="reviews")
 
 
 class Job(db.Model):

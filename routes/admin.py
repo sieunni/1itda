@@ -4,13 +4,12 @@ from flask import Blueprint, abort, flash, redirect, render_template, request, s
 from sqlalchemy.exc import SQLAlchemyError
 
 from extensions import db
-from models import REPORT_REASON_LABELS, AdminActionLog, Category, Company, Job, Report, User
+from models import REPORT_REASON_LABELS, AdminActionLog, Company, Job, Report, User
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
 JOB_STATUS_LABELS = {"pending": "승인 대기", "approved": "공개 중", "blocked": "차단", "closed": "마감"}
 REPORT_STATUS_LABELS = {"pending": "미처리", "reviewed": "확인 완료", "rejected": "반려"}
-CATEGORY_TYPES = {"region": "지역", "industry": "업종"}
 
 
 def admin_required(view):
@@ -63,9 +62,29 @@ def dashboard(admin):
         "jobseeker_count": User.query.filter_by(role="jobseeker").count(),
         "company_count": User.query.filter_by(role="company").count(),
         "pending_jobs": Job.query.filter_by(status="pending").count(),
+        "approved_jobs": Job.query.filter_by(status="approved").count(),
+        "blocked_jobs": Job.query.filter_by(status="blocked").count(),
         "pending_reports": Report.query.filter_by(status="pending").count(),
     }
-    return render_template("admin/dashboard.html", stats=stats)
+    recent_jobs = Job.query.order_by(Job.created_at.desc()).limit(5).all()
+    recent_reports = Report.query.order_by(Report.created_at.desc()).limit(5).all()
+    report_job_ids = {
+        report.target_id for report in recent_reports if report.target_type == "job"
+    }
+    report_jobs = {
+        job.job_id: job
+        for job in Job.query.filter(Job.job_id.in_(report_job_ids)).all()
+    }
+    return render_template(
+        "admin/dashboard.html",
+        stats=stats,
+        recent_jobs=recent_jobs,
+        recent_reports=recent_reports,
+        report_jobs=report_jobs,
+        job_status_labels=JOB_STATUS_LABELS,
+        report_status_labels=REPORT_STATUS_LABELS,
+        reason_labels=REPORT_REASON_LABELS,
+    )
 
 
 @admin_bp.route("/users")
@@ -203,49 +222,6 @@ def resolve_report(admin, report_id):
     log_action(admin, f"report_{decision}", report.target_type, report.target_id)
     _commit(success_message, "처리하지 못했습니다. 잠시 후 다시 시도해 주세요.")
     return redirect(url_for("admin.reports", status=request.args.get("status", "pending")))
-
-
-@admin_bp.route("/categories")
-@admin_required
-def categories(admin):
-    category_list = Category.query.order_by(Category.type.asc(), Category.name.asc()).all()
-    grouped = {"region": [], "industry": []}
-    for category in category_list:
-        grouped.setdefault(category.type, []).append(category)
-    return render_template("admin/categories.html", grouped=grouped, type_labels=CATEGORY_TYPES)
-
-
-@admin_bp.post("/categories")
-@admin_required
-def add_category(admin):
-    category_type = request.form.get("type", "")
-    name = (request.form.get("name") or "").strip()
-
-    if category_type not in CATEGORY_TYPES:
-        flash("분류 유형을 선택해 주세요.", "error")
-    elif not name:
-        flash("분류명을 입력해 주세요.", "error")
-    elif Category.query.filter_by(type=category_type, name=name).first():
-        flash("이미 등록된 분류입니다.", "error")
-    else:
-        db.session.add(Category(type=category_type, name=name))
-        log_action(admin, "add_category", "category", None)
-        _commit("분류를 추가했습니다.", "분류를 추가하지 못했습니다. 잠시 후 다시 시도해 주세요.")
-
-    return redirect(url_for("admin.categories"))
-
-
-@admin_bp.post("/categories/<int:category_id>/delete")
-@admin_required
-def delete_category(admin, category_id):
-    category = db.session.get(Category, category_id)
-    if category is None:
-        abort(404)
-
-    db.session.delete(category)
-    log_action(admin, "delete_category", "category", category_id)
-    _commit("분류를 삭제했습니다.", "분류를 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.")
-    return redirect(url_for("admin.categories"))
 
 
 @admin_bp.route("/logs")

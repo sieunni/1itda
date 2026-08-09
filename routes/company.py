@@ -5,8 +5,9 @@ from functools import wraps
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_from_directory, session, url_for
 from sqlalchemy.exc import SQLAlchemyError
 
+from choices import INDUSTRY_CHOICES, REGION_CHOICES
 from extensions import db
-from models import Application, ApplicationStatusHistory, Category, ChatMessage, Company, Job, Resume, User
+from models import Application, ApplicationStatusHistory, ChatMessage, Company, Job, Resume, User
 
 company_bp = Blueprint("company", __name__, url_prefix="/company")
 
@@ -69,23 +70,10 @@ def effective_job_status(job):
     return job.status
 
 
-def _category_names(category_type, current_value=None):
-    names = [
-        name
-        for (name,) in Category.query.with_entities(Category.name)
-        .filter(Category.type == category_type)
-        .order_by(Category.name.asc())
-        .all()
-    ]
-    if current_value and current_value not in names:
-        names.append(current_value)
-    return names
-
-
 def job_form_options(job=None):
     return {
-        "regions": _category_names("region", job.region if job else None),
-        "industries": _category_names("industry", job.industry if job else None),
+        "regions": REGION_CHOICES,
+        "industries": INDUSTRY_CHOICES,
     }
 
 
