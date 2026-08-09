@@ -31,14 +31,20 @@ class ReviewFeatureTest(unittest.TestCase):
             self.author = User(email="author@example.com", password_hash="unused", role="jobseeker", name="작성자")
             self.other = User(email="other@example.com", password_hash="unused", role="jobseeker", name="다른 사용자")
             self.admin = User(email="admin@example.com", password_hash="unused", role="admin", name="관리자")
-            db.session.add_all([owner, self.author, self.other, self.admin])
+            inactive_owner = User(email="inactive@example.com", password_hash="unused", role="company",
+                                  name="비활성 기업 담당자", is_active=False)
+            db.session.add_all([owner, self.author, self.other, self.admin, inactive_owner])
             db.session.flush()
             self.company = Company(user_id=owner.user_id, company_name="테스트 기업")
-            db.session.add(self.company)
+            self.admin_company = Company(user_id=self.admin.user_id, company_name="관리자 연결 기업")
+            self.inactive_company = Company(user_id=inactive_owner.user_id, company_name="비활성 기업")
+            db.session.add_all([self.company, self.admin_company, self.inactive_company])
             db.session.commit()
             self.ids = {"owner": owner.user_id, "author": self.author.user_id,
                         "other": self.other.user_id, "admin": self.admin.user_id,
-                        "company": self.company.company_id}
+                        "company": self.company.company_id,
+                        "admin_company": self.admin_company.company_id,
+                        "inactive_company": self.inactive_company.company_id}
 
     def login_as(self, user_id, role):
         with self.client.session_transaction() as session:
@@ -69,6 +75,27 @@ class ReviewFeatureTest(unittest.TestCase):
         response = self.client.get("/reviews")
         self.assertEqual(response.status_code, 200)
         self.assertIn("기업 리뷰".encode(), response.data)
+
+    def test_company_options_only_include_active_company_owners(self):
+        response = self.client.get("/reviews")
+        self.assertIn("테스트 기업".encode(), response.data)
+        self.assertNotIn("관리자 연결 기업".encode(), response.data)
+        self.assertNotIn("비활성 기업".encode(), response.data)
+
+        self.login_as(self.ids["author"], "jobseeker")
+        form = self.client.get("/reviews/new")
+        self.assertIn("테스트 기업".encode(), form.data)
+        self.assertNotIn("관리자 연결 기업".encode(), form.data)
+        self.assertNotIn("비활성 기업".encode(), form.data)
+
+        self.assertEqual(
+            self.client.get(f"/companies/{self.ids['admin_company']}/reviews").status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.get(f"/companies/{self.ids['inactive_company']}/reviews").status_code,
+            404,
+        )
 
     def test_jobseeker_create_detail_edit_delete(self):
         self.login_as(self.ids["author"], "jobseeker")

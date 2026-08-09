@@ -13,6 +13,20 @@ MAX_CONTENT_LENGTH = 10000
 MAX_REPORT_DESCRIPTION_LENGTH = 1000
 
 
+def active_companies_query():
+    return Company.query.join(Company.owner).filter(
+        User.role == "company",
+        User.is_active.is_(True),
+    )
+
+
+def active_company_or_404(company_id):
+    company = active_companies_query().filter(Company.company_id == company_id).first()
+    if company is None:
+        abort(404)
+    return company
+
+
 def login_required(view):
     @wraps(view)
     def wrapped_view(*args, **kwargs):
@@ -80,7 +94,11 @@ def validate_review_form(form):
         company_id = int(company_id_text)
     except (TypeError, ValueError):
         company_id = None
-    company = db.session.get(Company, company_id) if company_id is not None else None
+    company = (
+        active_companies_query().filter(Company.company_id == company_id).first()
+        if company_id is not None
+        else None
+    )
     if company is None:
         errors.append("기업을 선택해 주세요.")
 
@@ -104,20 +122,25 @@ def validate_review_form(form):
 
 @reviews_bp.get("/reviews")
 def review_list():
-    companies = Company.query.order_by(Company.company_name.asc()).all()
+    companies = active_companies_query().order_by(Company.company_name.asc()).all()
     company_id_text = (request.args.get("company_id") or "").strip()
     selected_company = None
-    query = Review.query.options(joinedload(Review.author), joinedload(Review.company)).filter(
-        Review.is_hidden.is_(False)
+    query = (
+        Review.query.options(joinedload(Review.author), joinedload(Review.company))
+        .join(Review.company)
+        .join(Company.owner)
+        .filter(
+            Review.is_hidden.is_(False),
+            User.role == "company",
+            User.is_active.is_(True),
+        )
     )
     if company_id_text:
         try:
             company_id = int(company_id_text)
         except ValueError:
             abort(404)
-        selected_company = db.session.get(Company, company_id)
-        if selected_company is None:
-            abort(404)
+        selected_company = active_company_or_404(company_id)
         query = query.filter(Review.company_id == company_id)
     reviews = query.order_by(Review.created_at.desc(), Review.review_id.desc()).all()
     return render_template("reviews/list.html", reviews=reviews, companies=companies, selected_company=selected_company)
@@ -125,9 +148,7 @@ def review_list():
 
 @reviews_bp.get("/companies/<int:company_id>/reviews")
 def company_reviews(company_id):
-    company = db.session.get(Company, company_id)
-    if company is None:
-        abort(404)
+    company = active_company_or_404(company_id)
     reviews = (Review.query.options(joinedload(Review.author)).filter(
         Review.company_id == company_id, Review.is_hidden.is_(False))
                .order_by(Review.created_at.desc(), Review.review_id.desc()).all())
@@ -198,7 +219,7 @@ def review_report(user, review_id):
 @reviews_bp.route("/reviews/new", methods=["GET", "POST"])
 @jobseeker_required
 def review_new(user):
-    companies = Company.query.order_by(Company.company_name.asc()).all()
+    companies = active_companies_query().order_by(Company.company_name.asc()).all()
     if request.method == "POST":
         values, errors = validate_review_form(request.form)
         if not errors:
@@ -217,7 +238,7 @@ def review_new(user):
 @jobseeker_required
 def review_edit(user, review_id):
     review = owned_review_or_403(user, review_id)
-    companies = Company.query.order_by(Company.company_name.asc()).all()
+    companies = active_companies_query().order_by(Company.company_name.asc()).all()
     if request.method == "POST":
         values, errors = validate_review_form(request.form)
         if not errors:
