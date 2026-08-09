@@ -19,6 +19,7 @@
         {% if current_user.role == 'admin' %}
         <li><a href="{{ url_for('admin.dashboard') }}">관리자</a></li>
         {% else %}
+        <li><a href="{{ url_for('chat.chat_list') }}">채팅</a></li>
         <li><a href="{{ url_for('profile.mypage') }}">마이페이지</a></li>
         {% endif %}
         <li><a href="{{ url_for('auth.logout') }}">로그아웃</a></li>

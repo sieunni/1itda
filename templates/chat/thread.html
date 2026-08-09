@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}메시지 - {{ application.job.title if application.job else '1ITDA' }}{% endblock %}
+
+{% block content %}
+<section class="chat-page">
+  <header class="chat-page__header">
+    <div>
+      <span class="chat-eyebrow">MESSAGE</span>
+      <h1>{{ application.job.title if application.job else '삭제된 공고' }}</h1>
+      <p>{{ application.job.company.company_name if application.job and application.job.company else '' }}</p>
+    </div>
+    <div class="chat-page__header-actions">
+      <a class="btn btn-outline" href="{{ url_for('chat.chat_list') }}">채팅 목록</a>
+      {% if current_user.role == "company" %}
+      <a class="btn btn-outline" href="{{ url_for('company.applicant_detail', application_id=application.application_id) }}">지원자 상세로</a>
+      {% else %}
+      <a class="btn btn-outline" href="{{ url_for('applications.my_applications') }}">지원 내역으로</a>
+      {% endif %}
+    </div>
+  </header>
+
+  <div class="chat-thread" id="chat-thread" data-application-id="{{ application.application_id }}" data-last-id="{{ messages[-1].message_id if messages else 0 }}">
+    {% if messages %}
+      {% for message in messages %}
+        {% if message.is_system %}
+        <div class="chat-message chat-message--system"><span>{{ message.content }}</span></div>
+        {% else %}
+        <div class="chat-message {{ 'chat-message--mine' if message.sender_id == current_user.user_id else 'chat-message--theirs' }}">
+          <p>{{ message.content }}</p>
+          <time>{{ message.created_at.strftime('%Y-%m-%d %H:%M') }}</time>
+        </div>
+        {% endif %}
+      {% endfor %}
+    {% else %}
+    <p class="chat-empty">아직 주고받은 메시지가 없습니다. 궁금한 점을 편하게 물어보세요.</p>
+    {% endif %}
+  </div>
+
+  <form class="chat-form" id="chat-form" method="post" action="{{ url_for('chat.send_message', application_id=application.application_id) }}">
+    {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+    <textarea name="content" id="chat-input" rows="2" maxlength="1000" placeholder="메시지를 입력하세요" required></textarea>
+    <button type="submit" class="btn btn-primary">보내기</button>
+  </form>
+</section>
+
+<script>
+(function () {
+  const threadEl = document.getElementById('chat-thread');
+  const form = document.getElementById('chat-form');
+  const input = document.getElementById('chat-input');
+  const applicationId = threadEl.dataset.applicationId;
+  let lastId = Number(threadEl.dataset.lastId || 0);
+  const emptyNotice = document.querySelector('.chat-empty');
+
+  function appendMessage(message) {
+    if (emptyNotice) emptyNotice.remove();
+    const el = document.createElement('div');
+    if (message.is_system) {
+      el.className = 'chat-message chat-message--system';
+      const span = document.createElement('span');
+      span.textContent = message.content;
+      el.appendChild(span);
+    } else {
+      el.className = 'chat-message ' + (message.is_mine ? 'chat-message--mine' : 'chat-message--theirs');
+      const p = document.createElement('p');
+      p.textContent = message.content;
+      const time = document.createElement('time');
+      time.textContent = message.created_at;
+      el.appendChild(p);
+      el.appendChild(time);
+    }
+    threadEl.appendChild(el);
+    threadEl.scrollTop = threadEl.scrollHeight;
+  }
+
+  async function pollMessages() {
+    try {
+      const res = await fetch(`/applications/${applicationId}/chat/messages?after=${lastId}`);
+      if (!res.ok) return;
+      const messages = await res.json();
+      messages.forEach((message) => {
+        if (!message.is_mine) appendMessage(message);
+        lastId = message.message_id;
+      });
+    } catch (err) {
+      /* 폴링 실패는 다음 주기에 재시도 */
+    }
+  }
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!input.value.trim()) return;
+    const formData = new FormData(form);
+    const res = await fetch(form.action, { method: 'POST', body: formData });
+    if (res.ok) {
+      const message = await res.json();
+      appendMessage(message);
+      lastId = message.message_id;
+      input.value = '';
+    }
+  });
+
+  threadEl.scrollTop = threadEl.scrollHeight;
+  setInterval(pollMessages, 4000);
+})();
+</script>
+{% endblock %}

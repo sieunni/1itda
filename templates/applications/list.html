@@ -56,6 +56,9 @@
         {% else %}
         <span class="application-unavailable">현재 비공개 공고</span>
         {% endif %}
+        {% if application.status != 'cancelled' %}
+        <a class="btn btn-primary" href="{{ url_for('chat.chat_thread', application_id=application.application_id) }}">메시지</a>
+        {% endif %}
       </div>
     </article>
     {% endfor %}

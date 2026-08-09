@@ -73,6 +73,20 @@ class Application(db.Model):
 
     job = db.relationship("Job", back_populates="applications")
     status_history = db.relationship("ApplicationStatusHistory", back_populates="application")
+    chat_messages = db.relationship("ChatMessage", back_populates="application")
+
+
+class ChatMessage(db.Model):
+    __tablename__ = "chat_messages"
+
+    message_id = db.Column(db.Integer, primary_key=True)
+    application_id = db.Column(db.Integer, db.ForeignKey("applications.application_id"), nullable=False)
+    sender_id = db.Column(db.Integer, db.ForeignKey("users.user_id"), nullable=False)
+    is_system = db.Column(db.Boolean, default=False, nullable=False)  # 합격/불합격 자동 통보 메시지 여부
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    application = db.relationship("Application", back_populates="chat_messages")
 
 
 class ApplicationStatusHistory(db.Model):

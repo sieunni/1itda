@@ -6,11 +6,15 @@ from flask import Blueprint, abort, current_app, flash, redirect, render_templat
 from sqlalchemy.exc import SQLAlchemyError
 
 from extensions import db
-from models import Application, ApplicationStatusHistory, Category, Company, Job, Resume, User
+from models import Application, ApplicationStatusHistory, Category, ChatMessage, Company, Job, Resume, User
 
 company_bp = Blueprint("company", __name__, url_prefix="/company")
 
 APPLICATION_STATUSES = {"submitted", "accepted", "rejected"}
+AUTO_STATUS_MESSAGES = {
+    "accepted": "지원하신 공고에 합격하셨습니다. 축하드립니다!",
+    "rejected": "안타깝게도 이번 지원 건은 함께하지 못하게 되었습니다. 좋은 기회로 다시 만나뵙길 바랍니다.",
+}
 
 
 def company_required(view):
@@ -339,6 +343,15 @@ def applicant_status(company, user, application_id):
             changed_by=user.user_id,
         )
     )
+    if new_status in AUTO_STATUS_MESSAGES:
+        db.session.add(
+            ChatMessage(
+                application_id=application.application_id,
+                sender_id=user.user_id,
+                is_system=True,
+                content=AUTO_STATUS_MESSAGES[new_status],
+            )
+        )
     try:
         db.session.commit()
     except SQLAlchemyError:

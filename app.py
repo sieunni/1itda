@@ -6,6 +6,7 @@ from models import Job, User
 from routes.admin import admin_bp
 from routes.applications import applications_bp
 from routes.auth import auth_bp
+from routes.chat import chat_bp
 from routes.company import company_bp
 from routes.jobs import jobs_bp
 from routes.profile import profile_bp
@@ -24,6 +25,7 @@ def create_app():
     app.register_blueprint(applications_bp)
     app.register_blueprint(company_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(chat_bp)
 
     @app.context_processor
     def inject_current_user():
