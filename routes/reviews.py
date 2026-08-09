@@ -173,6 +173,8 @@ def review_detail(review_id):
 @login_required
 def review_report(user, review_id):
     review = review_or_404(review_id)
+    if user.role == "admin":
+        abort(403)
     if review.user_id == user.user_id:
         abort(403)
     existing = ReviewReport.query.filter_by(

@@ -218,6 +218,30 @@ class ReviewFeatureTest(unittest.TestCase):
             302,
         )
 
+    def test_admin_cannot_report_reviews_but_can_manage_reports(self):
+        review_id = self.create_review()
+        self.login_as(self.ids["admin"], "admin")
+
+        detail = self.client.get(f"/reviews/{review_id}")
+        self.assertEqual(detail.status_code, 200)
+        self.assertNotIn("신고하기".encode(), detail.data)
+        self.assertEqual(self.client.get(f"/reviews/{review_id}/report").status_code, 403)
+        self.assertEqual(
+            self.client.post(
+                f"/reviews/{review_id}/report",
+                data={"reason": "abuse", "description": "조작된 관리자 요청"},
+            ).status_code,
+            403,
+        )
+        with app.app_context():
+            self.assertEqual(ReviewReport.query.filter_by(reporter_id=self.ids["admin"]).count(), 0)
+
+        report_id = self.create_report(review_id, self.ids["other"])
+        listing = self.client.get("/admin/reports?status=pending")
+        self.assertEqual(listing.status_code, 200)
+        self.assertIn(b"#" + str(report_id).encode(), listing.data)
+        self.assertEqual(self.client.post(f"/admin/reports/{report_id}/dismiss").status_code, 302)
+
     def test_duplicate_report_blocked_but_different_users_allowed(self):
         review_id = self.create_review()
         self.login_as(self.ids["other"], "jobseeker")

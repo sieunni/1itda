@@ -7,7 +7,7 @@
   <header><a class="review-company-link" href="{{ url_for('reviews.company_reviews', company_id=review.company_id) }}">{{ review.company.company_name }}</a><div class="review-stars review-stars--large" aria-label="별점 {{ review.rating }}점">{{ '★' * review.rating }}{{ '☆' * (5 - review.rating) }}</div><h1>{{ review.title }}</h1><div class="review-meta"><span>{{ review.author.name or review.author.email }}</span><span>·</span><time datetime="{{ review.created_at.isoformat() }}">{{ review.created_at.strftime('%Y-%m-%d') }}</time></div></header>
   <div class="review-detail__content">{{ review.content }}</div>
   <div class="review-actions">
-    {% if current_user and current_user.user_id != review.user_id and not review.is_hidden %}<a class="review-report-link" href="{{ url_for('reviews.review_report', review_id=review.review_id) }}">신고하기</a>{% endif %}
+    {% if current_user and current_user.role != 'admin' and current_user.user_id != review.user_id and not review.is_hidden %}<a class="review-report-link" href="{{ url_for('reviews.review_report', review_id=review.review_id) }}">신고하기</a>{% endif %}
     {% if current_user and current_user.user_id == review.user_id %}<a class="btn btn-outline" href="{{ url_for('reviews.review_edit', review_id=review.review_id) }}">수정</a><form method="post" action="{{ url_for('reviews.review_delete', review_id=review.review_id) }}" onsubmit="return confirm('리뷰를 삭제하시겠습니까?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn review-delete" type="submit">삭제</button></form>{% endif %}
   </div>
 </article>
