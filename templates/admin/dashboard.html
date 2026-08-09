@@ -25,6 +25,14 @@
       <span class="admin-stat-label">승인 대기 공고</span>
       <strong class="admin-stat-value">{{ stats.pending_jobs }}</strong>
     </a>
+    <a class="admin-stat-card" href="{{ url_for('admin.jobs', status='approved') }}">
+      <span class="admin-stat-label">게시 중 공고</span>
+      <strong class="admin-stat-value">{{ stats.approved_jobs }}</strong>
+    </a>
+    <a class="admin-stat-card" href="{{ url_for('admin.jobs', status='blocked') }}">
+      <span class="admin-stat-label">차단 공고</span>
+      <strong class="admin-stat-value">{{ stats.blocked_jobs }}</strong>
+    </a>
     <a class="admin-stat-card" href="{{ url_for('admin.reports', status='pending') }}">
       <span class="admin-stat-label">미처리 신고</span>
       <strong class="admin-stat-value">{{ stats.pending_reports }}</strong>
@@ -32,8 +40,53 @@
   </div>
 
   <nav class="admin-quick-nav">
-    <a href="{{ url_for('admin.categories') }}">지역·업종 분류 관리</a>
+    <a href="{{ url_for('admin.users') }}">회원 관리</a>
+    <a href="{{ url_for('admin.jobs') }}">공고 관리</a>
+    <a href="{{ url_for('admin.reports') }}">신고 관리</a>
     <a href="{{ url_for('admin.logs') }}">처리 이력</a>
   </nav>
+
+  <div class="admin-dashboard-grid">
+    <section class="admin-dashboard-panel">
+      <div class="admin-dashboard-panel__header">
+        <div><h2>최근 등록 공고</h2><p>새로 등록된 공고를 확인하세요.</p></div>
+        <a href="{{ url_for('admin.jobs') }}">전체보기</a>
+      </div>
+      {% if recent_jobs %}
+      <ul class="admin-dashboard-list">
+        {% for job in recent_jobs %}
+        <li>
+          <a href="{{ url_for('jobs.job_detail', job_id=job.job_id) }}">
+            <span><strong>{{ job.title }}</strong><small>{{ job.company.company_name if job.company else '기업 미정' }} · {{ job.created_at.strftime('%Y-%m-%d') if job.created_at else '-' }}</small></span>
+            <span class="status-badge status-{{ job.status }}">{{ job_status_labels.get(job.status, job.status) }}</span>
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}<p class="admin-dashboard-empty">등록된 공고가 없습니다.</p>{% endif %}
+    </section>
+
+    <section class="admin-dashboard-panel">
+      <div class="admin-dashboard-panel__header">
+        <div><h2>최근 신고</h2><p>최근 접수된 신고를 확인하세요.</p></div>
+        <a href="{{ url_for('admin.reports') }}">전체보기</a>
+      </div>
+      {% if recent_reports %}
+      <ul class="admin-dashboard-list">
+        {% for report in recent_reports %}
+        <li>
+          <a href="{{ url_for('admin.reports', status=report.status) }}">
+            <span>
+              <strong>{% if report.target_type == 'job' and report_jobs.get(report.target_id) %}{{ report_jobs.get(report.target_id).title }}{% else %}{{ {'company':'기업 신고','user':'회원 신고'}.get(report.target_type, '삭제된 공고') }}{% endif %}</strong>
+              <small>{{ reason_labels.get(report.reason_category, report.reason_category or '사유 미입력') }} · {{ report.created_at.strftime('%Y-%m-%d') if report.created_at else '-' }}</small>
+            </span>
+            <span class="status-badge {{ 'status-approved' if report.status == 'reviewed' else 'status-blocked' if report.status == 'rejected' else 'status-pending' }}">{{ report_status_labels.get(report.status, report.status) }}</span>
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}<p class="admin-dashboard-empty">접수된 신고가 없습니다.</p>{% endif %}
+    </section>
+  </div>
 </section>
 {% endblock %}
