@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% set editing = review is not none %}
+{% block title %}리뷰 {{ '수정' if editing else '작성' }} | 1ITDA{% endblock %}
+{% block content %}
+<section class="review-form-page"><a class="review-back" href="{{ url_for('reviews.review_detail', review_id=review.review_id) if editing else url_for('reviews.review_list') }}">← 돌아가기</a><div class="review-form-card">
+  <header><span>SHARE YOUR EXPERIENCE</span><h1>기업 리뷰 {{ '수정' if editing else '작성' }}</h1><p>솔직하고 구체적인 경험을 공유해 주세요.</p></header>
+  <form method="post" class="review-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group"><label for="company_id">기업</label><select id="company_id" name="company_id" required><option value="">기업을 선택해 주세요</option>{% for company in companies %}<option value="{{ company.company_id }}" {% if (request.form.get('company_id')|int == company.company_id) or (not request.form and editing and review.company_id == company.company_id) %}selected{% endif %}>{{ company.company_name }}</option>{% endfor %}</select></div>
+    <div class="form-group"><label for="rating">별점</label><select id="rating" name="rating" required><option value="">별점을 선택해 주세요</option>{% for score in range(5, 0, -1) %}<option value="{{ score }}" {% if (request.form.get('rating')|int == score) or (not request.form and editing and review.rating == score) %}selected{% endif %}>{{ '★' * score }}{{ '☆' * (5 - score) }} ({{ score }}점)</option>{% endfor %}</select></div>
+    <div class="form-group"><label for="title">제목</label><input id="title" name="title" maxlength="200" required value="{{ request.form.get('title', review.title if editing else '') }}" placeholder="리뷰 제목을 입력해 주세요"></div>
+    <div class="form-group"><label for="content">리뷰 내용</label><textarea id="content" name="content" maxlength="10000" required rows="10" placeholder="기업에서의 경험을 작성해 주세요">{{ request.form.get('content', review.content if editing else '') }}</textarea></div>
+    <div class="review-form-actions"><a class="btn btn-outline" href="{{ url_for('reviews.review_detail', review_id=review.review_id) if editing else url_for('reviews.review_list') }}">취소</a><button class="btn btn-primary" type="submit">{{ '수정 완료' if editing else '리뷰 등록' }}</button></div>
+  </form>
+</div></section>
+{% endblock %}

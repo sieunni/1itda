@@ -1,0 +1,14 @@
+{% if reviews %}
+<div class="review-list">
+  {% for review in reviews %}
+  <a class="review-card" href="{{ url_for('reviews.review_detail', review_id=review.review_id) }}">
+    <div class="review-card__top"><strong>{{ review.company.company_name }}</strong><span class="review-stars" aria-label="별점 {{ review.rating }}점">{{ '★' * review.rating }}{{ '☆' * (5 - review.rating) }} <small>{{ review.rating }}.0</small></span></div>
+    <h2>{{ review.title }}</h2>
+    <p>{{ review.content|truncate(140, true, '...') }}</p>
+    <div class="review-meta"><span>{{ review.author.name or review.author.email }}</span><span>·</span><time datetime="{{ review.created_at.isoformat() }}">{{ review.created_at.strftime('%Y-%m-%d') }}</time></div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="review-empty"><h2>아직 작성된 리뷰가 없습니다.</h2><p>첫 번째 기업 리뷰를 남겨 보세요.</p></div>
+{% endif %}

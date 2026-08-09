@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}기업 리뷰 | 1ITDA{% endblock %}
+{% block content %}
+<section class="reviews-page">
+  <header class="review-page-header"><div><span>COMPANY REVIEWS</span><h1>기업 리뷰</h1><p>구직자들이 직접 작성한 기업 경험을 확인해 보세요.</p></div>{% if current_user and current_user.role == 'jobseeker' %}<a class="btn btn-primary" href="{{ url_for('reviews.review_new') }}">리뷰 작성</a>{% endif %}</header>
+  <form class="review-filter" method="get" action="{{ url_for('reviews.review_list') }}"><label for="company_id">기업 선택</label><select id="company_id" name="company_id"><option value="">전체 기업</option>{% for company in companies %}<option value="{{ company.company_id }}" {% if selected_company and selected_company.company_id == company.company_id %}selected{% endif %}>{{ company.company_name }}</option>{% endfor %}</select><button class="btn btn-outline" type="submit">조회</button></form>
+  {% include "reviews/_cards.html" %}
+</section>
+{% endblock %}
