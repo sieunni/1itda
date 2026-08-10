@@ -201,16 +201,6 @@ class Report(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
-class Category(db.Model):
-    __tablename__ = "categories"
-    __table_args__ = (db.UniqueConstraint("type", "name", name="uq_category_type_name"),)
-
-    category_id = db.Column(db.Integer, primary_key=True)
-    type = db.Column(db.String(20), nullable=False)  # region / industry
-    name = db.Column(db.String(80), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-
-
 class AdminActionLog(db.Model):
     __tablename__ = "admin_action_logs"
 
