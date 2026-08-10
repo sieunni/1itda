@@ -309,7 +309,7 @@ def report_job(job_id):
         target_id=job.job_id,
     ).first()
     if existing_report is not None:
-        flash("이미 신고한 공고입니다. 관리자가 확인할 예정입니다.", "info")
+        flash("이미 신고 이력이 있는 공고입니다. 같은 공고는 다시 신고할 수 없습니다.", "info")
         return redirect(url_for("jobs.job_detail", job_id=job.job_id))
 
     reason_category = request.form.get("reason_category", "")

@@ -80,7 +80,7 @@
               <strong>{% if report.target_type == 'job' and report_jobs.get(report.target_id) %}{{ report_jobs.get(report.target_id).title }}{% else %}{{ {'company':'기업 신고','user':'회원 신고'}.get(report.target_type, '삭제된 공고') }}{% endif %}</strong>
               <small>{{ reason_labels.get(report.reason_category, report.reason_category or '사유 미입력') }} · {{ report.created_at.strftime('%Y-%m-%d') if report.created_at else '-' }}</small>
             </span>
-            <span class="status-badge {{ 'status-approved' if report.status == 'reviewed' else 'status-blocked' if report.status == 'rejected' else 'status-pending' }}">{{ report_status_labels.get(report.status, report.status) }}</span>
+            <span class="status-badge {{ 'status-blocked' if report.status == 'reviewed' else 'status-rejected' if report.status == 'rejected' else 'status-pending' if report.status == 'pending' else 'status-' ~ report.status }}">{{ report_status_labels.get(report.status, report.status) }}</span>
           </a>
         </li>
         {% endfor %}

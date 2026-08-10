@@ -22,12 +22,24 @@ from models import (
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
 JOB_STATUS_LABELS = {"pending": "승인 대기", "approved": "공개 중", "blocked": "차단", "closed": "마감"}
-REPORT_STATUS_LABELS = {"pending": "미처리", "reviewed": "확인 완료", "rejected": "반려"}
+REPORT_STATUS_LABELS = {"pending": "미처리", "reviewed": "차단 완료", "rejected": "반려", "dismissed": "기각"}
 REVIEW_REPORT_STATUS_LABELS = {
     "": "전체",
-    "pending": "처리 대기",
+    "pending": "미처리",
     "dismissed": "기각",
-    "hidden": "숨김",
+    "hidden": "리뷰 숨김",
+}
+REPORT_FILTER_LABELS = {
+    "": "전체",
+    "pending": "미처리",
+    "reviewed": "차단 완료",
+    "rejected": "반려",
+    "dismissed": "기각",
+    "hidden": "리뷰 숨김",
+}
+REPORT_ALLOWED_TRANSITIONS = {
+    "pending": {"reviewed", "rejected", "dismissed"},
+    "rejected": {"reviewed", "dismissed"},
 }
 
 
@@ -192,7 +204,7 @@ def unblock_job(admin, job_id):
 @admin_required
 def reports(admin):
     status_filter = request.args.get("status", "pending")
-    allowed_filters = set(REVIEW_REPORT_STATUS_LABELS) | set(REPORT_STATUS_LABELS)
+    allowed_filters = set(REPORT_FILTER_LABELS)
     if status_filter not in allowed_filters:
         status_filter = "pending"
 
@@ -239,7 +251,9 @@ def reports(admin):
         reports=report_list,
         review_reports=review_reports,
         status_filter=status_filter,
-        status_labels={**REVIEW_REPORT_STATUS_LABELS, **REPORT_STATUS_LABELS},
+        status_labels=REPORT_FILTER_LABELS,
+        report_status_labels=REPORT_STATUS_LABELS,
+        review_report_status_labels=REVIEW_REPORT_STATUS_LABELS,
         reason_labels=REPORT_REASON_LABELS,
         review_reason_labels=REVIEW_REPORT_REASON_LABELS,
         reporters=reporters,
@@ -308,19 +322,41 @@ def resolve_report(admin, report_id):
         abort(404)
 
     decision = request.form.get("decision")
-    if decision not in ("reviewed", "rejected"):
+    allowed_decisions = REPORT_ALLOWED_TRANSITIONS.get(report.status, set())
+    if decision not in allowed_decisions:
         flash("처리 방법을 선택해 주세요.", "error")
-        return redirect(url_for("admin.reports"))
+        return redirect(url_for("admin.reports", status=request.args.get("status", "pending")))
 
     success_message = "신고를 처리했습니다."
     if decision == "reviewed" and report.target_type == "job":
         reported_job = db.session.get(Job, report.target_id)
         if reported_job is not None:
-            reported_job.status = "blocked"
-            log_action(admin, "block", "job", reported_job.job_id)
-            success_message = "신고를 확인 처리하고 공고를 목록에서 숨겼습니다."
+            if reported_job.status == "closed":
+                success_message = "마감된 공고 신고를 차단 완료로 처리했습니다. 공고 상태는 마감으로 유지했습니다."
+            elif reported_job.status == "blocked":
+                success_message = "이미 차단된 공고 신고를 차단 완료로 처리했습니다."
+            else:
+                reported_job.status = "blocked"
+                log_action(admin, "block", "job", reported_job.job_id)
+                success_message = "신고를 확인 처리하고 공고를 차단했습니다."
+            related_reports = Report.query.filter_by(
+                target_type="job",
+                target_id=report.target_id,
+                status="pending",
+            ).all()
+            for related_report in related_reports:
+                related_report.status = "reviewed"
+        else:
+            success_message = "신고를 차단 완료로 처리했습니다. 대상 공고는 확인할 수 없습니다."
 
     report.status = decision
+    if decision == "pending":
+        success_message = "신고를 미처리 상태로 되돌렸습니다."
+    elif decision == "rejected":
+        success_message = "신고를 반려했습니다."
+    elif decision == "dismissed":
+        success_message = "신고를 기각했습니다."
+
     log_action(admin, f"report_{decision}", report.target_type, report.target_id)
     _commit(success_message, "처리하지 못했습니다. 잠시 후 다시 시도해 주세요.")
     return redirect(url_for("admin.reports", status=request.args.get("status", "pending")))

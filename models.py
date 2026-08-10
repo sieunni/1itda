@@ -197,7 +197,7 @@ class Report(db.Model):
     target_id = db.Column(db.Integer, nullable=False)
     reason_category = db.Column(db.String(30))  # REPORT_REASON_LABELS 키
     reason = db.Column(db.Text)  # "기타" 상세 사유 또는 추가 설명
-    status = db.Column(db.String(20), nullable=False, default="pending")  # pending/reviewed/rejected
+    status = db.Column(db.String(20), nullable=False, default="pending")  # pending/reviewed/rejected/dismissed
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 

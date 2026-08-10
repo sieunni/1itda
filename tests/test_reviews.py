@@ -10,7 +10,7 @@ os.environ["SECRET_KEY"] = "review-test-secret"
 
 from app import app
 from extensions import db
-from models import Company, Review, ReviewReport, User
+from models import Company, Job, Report, Review, ReviewReport, User
 
 
 class ReviewFeatureTest(unittest.TestCase):
@@ -66,6 +66,32 @@ class ReviewFeatureTest(unittest.TestCase):
                 reporter_id=reporter_id or self.ids["other"],
                 reason="false_info",
                 description="사실과 다른 내용입니다.",
+            )
+            db.session.add(report)
+            db.session.commit()
+            return report.report_id
+
+    def create_job(self, status="approved"):
+        with app.app_context():
+            job = Job(
+                company_id=self.ids["company"],
+                title="신고 대상 공고",
+                content="신고 처리 테스트용 공고입니다.",
+                status=status,
+            )
+            db.session.add(job)
+            db.session.commit()
+            return job.job_id
+
+    def create_job_report(self, job_id, reporter_id=None, status="pending"):
+        with app.app_context():
+            report = Report(
+                reporter_id=reporter_id or self.ids["other"],
+                target_type="job",
+                target_id=job_id,
+                reason_category="spam",
+                reason="중복 공고로 보입니다.",
+                status=status,
             )
             db.session.add(report)
             db.session.commit()
@@ -319,6 +345,99 @@ class ReviewFeatureTest(unittest.TestCase):
         self.assertEqual(self.client.post("/admin/reports/999999/hide").status_code, 404)
         self.login_as(self.ids["other"], "jobseeker")
         self.assertEqual(self.client.get("/reviews/999999/report").status_code, 404)
+
+    def test_admin_blocks_job_report_and_related_pending_reports(self):
+        job_id = self.create_job()
+        first_report_id = self.create_job_report(job_id)
+        second_report_id = self.create_job_report(job_id, self.ids["author"])
+        self.login_as(self.ids["admin"], "admin")
+
+        response = self.client.post(
+            f"/admin/reports/{first_report_id}/resolve",
+            data={"decision": "reviewed"},
+        )
+        self.assertEqual(response.status_code, 302)
+        with app.app_context():
+            self.assertEqual(db.session.get(Job, job_id).status, "blocked")
+            statuses = {
+                db.session.get(Report, first_report_id).status,
+                db.session.get(Report, second_report_id).status,
+            }
+            self.assertEqual(statuses, {"reviewed"})
+
+        listing = self.client.get("/admin/reports?status=reviewed")
+        self.assertEqual(listing.status_code, 200)
+        self.assertIn("차단 완료".encode(), listing.data)
+
+    def test_rejected_job_report_can_be_managed_again(self):
+        job_id = self.create_job()
+        report_id = self.create_job_report(job_id)
+        self.login_as(self.ids["admin"], "admin")
+
+        self.assertEqual(
+            self.client.post(
+                f"/admin/reports/{report_id}/resolve",
+                data={"decision": "rejected"},
+            ).status_code,
+            302,
+        )
+        rejected = self.client.get("/admin/reports?status=rejected")
+        self.assertEqual(rejected.status_code, 200)
+        self.assertNotIn("미처리로 되돌리기".encode(), rejected.data)
+        self.assertIn("기각".encode(), rejected.data)
+        self.assertIn("공고 차단".encode(), rejected.data)
+
+        self.assertEqual(
+            self.client.post(
+                f"/admin/reports/{report_id}/resolve",
+                data={"decision": "pending"},
+            ).status_code,
+            302,
+        )
+        with app.app_context():
+            self.assertEqual(db.session.get(Report, report_id).status, "rejected")
+
+    def test_job_report_can_be_dismissed_and_duplicate_report_policy_is_kept(self):
+        job_id = self.create_job()
+        self.login_as(self.ids["other"], "jobseeker")
+        self.assertEqual(
+            self.client.post(
+                f"/jobs/{job_id}/report",
+                data={"reason_category": "spam"},
+            ).status_code,
+            302,
+        )
+        with app.app_context():
+            report = Report.query.filter_by(
+                reporter_id=self.ids["other"],
+                target_type="job",
+                target_id=job_id,
+            ).one()
+            report.status = "dismissed"
+            db.session.commit()
+
+        duplicate = self.client.post(
+            f"/jobs/{job_id}/report",
+            data={"reason_category": "spam"},
+            follow_redirects=True,
+        )
+        self.assertEqual(duplicate.status_code, 200)
+        self.assertIn("같은 공고는 다시 신고할 수 없습니다.".encode(), duplicate.data)
+        with app.app_context():
+            self.assertEqual(Report.query.filter_by(target_type="job", target_id=job_id).count(), 1)
+
+    def test_invalid_job_report_decision_is_safe(self):
+        job_id = self.create_job()
+        report_id = self.create_job_report(job_id)
+        self.login_as(self.ids["admin"], "admin")
+
+        response = self.client.post(
+            f"/admin/reports/{report_id}/resolve",
+            data={"decision": "invalid"},
+        )
+        self.assertEqual(response.status_code, 302)
+        with app.app_context():
+            self.assertEqual(db.session.get(Report, report_id).status, "pending")
 
 
 if __name__ == "__main__":
