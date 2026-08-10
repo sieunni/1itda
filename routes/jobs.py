@@ -124,10 +124,18 @@ def _job_order_by(sort):
     if sort == "updated":
         return (Job.updated_at.desc(), Job.created_at.desc(), Job.job_id.desc())
     if sort == "deadline":
-        deadline_is_empty = case((Job.deadline.is_(None), 1), else_=0)
+        today = date.today()
+        deadline_group = case(
+            (Job.deadline < today, 2),
+            (Job.deadline.is_(None), 1),
+            else_=0,
+        )
+        active_deadline = case((Job.deadline >= today, Job.deadline), else_=None)
+        expired_deadline = case((Job.deadline < today, Job.deadline), else_=None)
         return (
-            deadline_is_empty.asc(),
-            Job.deadline.asc(),
+            deadline_group.asc(),
+            active_deadline.asc(),
+            expired_deadline.desc(),
             Job.created_at.desc(),
             Job.job_id.desc(),
         )
