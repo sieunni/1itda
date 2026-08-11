@@ -1,3 +1,4 @@
+import atexit
 import os
 import shutil
 import tempfile
@@ -5,6 +6,7 @@ import unittest
 
 
 TEST_DIR = tempfile.mkdtemp(prefix="1itda-review-tests-")
+atexit.register(shutil.rmtree, TEST_DIR, ignore_errors=True)
 os.environ["DATABASE_URL"] = "sqlite:///" + os.path.join(TEST_DIR, "test.db").replace("\\", "/")
 os.environ["SECRET_KEY"] = "review-test-secret"
 
@@ -17,10 +19,6 @@ class ReviewFeatureTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         app.config.update(TESTING=True, WTF_CSRF_ENABLED=False)
-
-    @classmethod
-    def tearDownClass(cls):
-        shutil.rmtree(TEST_DIR, ignore_errors=True)
 
     def setUp(self):
         self.client = app.test_client()

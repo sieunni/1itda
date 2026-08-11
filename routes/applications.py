@@ -1,6 +1,5 @@
 import os
 import uuid
-from datetime import date
 
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, session, url_for
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -8,6 +7,7 @@ from sqlalchemy.orm import joinedload
 from werkzeug.utils import secure_filename
 
 from extensions import db
+from job_lifecycle import is_job_closed
 from models import Application, ApplicationStatusHistory, Job, Resume, User
 
 applications_bp = Blueprint("applications", __name__)
@@ -40,7 +40,7 @@ def apply(job_id):
         flash("구직자 계정으로만 지원할 수 있습니다.", "error")
         return redirect(url_for("jobs.job_detail", job_id=job.job_id))
 
-    if job.deadline and job.deadline < date.today():
+    if is_job_closed(job):
         flash("지원이 마감된 공고입니다.", "error")
         return redirect(url_for("jobs.job_detail", job_id=job.job_id))
 

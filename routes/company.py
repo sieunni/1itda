@@ -7,6 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from choices import INDUSTRY_CHOICES, REGION_CHOICES
 from extensions import db
+from job_lifecycle import is_job_closed
 from models import Application, ApplicationStatusHistory, ChatMessage, Company, Job, Resume, User
 
 company_bp = Blueprint("company", __name__, url_prefix="/company")
@@ -65,7 +66,7 @@ def owned_application_or_404(company, application_id):
 
 
 def effective_job_status(job):
-    if job.status not in {"blocked", "closed"} and job.deadline and job.deadline < date.today():
+    if job.status != "blocked" and is_job_closed(job):
         return "closed"
     return job.status
 

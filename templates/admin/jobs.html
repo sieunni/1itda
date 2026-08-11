@@ -26,7 +26,7 @@
   {% if jobs %}
   <div class="admin-table-wrap">
     <table class="admin-table">
-      <thead><tr><th>공고</th><th>기업</th><th>상태</th><th>마감일</th><th>등록일</th><th>관리</th></tr></thead>
+      <thead><tr><th>공고</th><th>기업</th><th>상태</th><th>마감일</th><th>조회수</th><th>등록일</th><th>관리</th></tr></thead>
       <tbody>
       {% for job in jobs %}
         <tr>
@@ -34,6 +34,7 @@
           <td>{{ job.company.company_name if job.company else "-" }}</td>
           <td><span class="status-badge status-{{ job.status }}">{{ status_labels.get(job.status, job.status) }}</span></td>
           <td>{{ job.deadline or "상시 채용" }}</td>
+          <td>{{ job.view_count or 0 }}</td>
           <td>{{ job.created_at.strftime('%Y-%m-%d') if job.created_at else '-' }}</td>
           <td class="admin-actions">
             {% if job.status == "pending" %}

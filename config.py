@@ -22,3 +22,11 @@ class Config:
     MAX_CONTENT_LENGTH = 5 * 1024 * 1024  # 업로드 최대 5MB
 
     DEBUG = os.environ.get("FLASK_DEBUG", "0") == "1"
+
+    PASSWORD_RESET_MAX_AGE = int(os.environ.get("PASSWORD_RESET_MAX_AGE", "1800"))
+    MAIL_HOST = os.environ.get("MAIL_HOST")
+    MAIL_PORT = int(os.environ.get("MAIL_PORT", "587"))
+    MAIL_USERNAME = os.environ.get("MAIL_USERNAME")
+    MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD")
+    MAIL_FROM = os.environ.get("MAIL_FROM") or MAIL_USERNAME or "noreply@1itda.local"
+    MAIL_USE_TLS = os.environ.get("MAIL_USE_TLS", "1") == "1"

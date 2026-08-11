@@ -12,6 +12,7 @@ class User(db.Model):
     role = db.Column(db.String(20), nullable=False)  # jobseeker / company / admin
     name = db.Column(db.String(80))
     is_active = db.Column(db.Boolean, default=True, nullable=False)
+    password_reset_nonce = db.Column(db.String(64))
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     company = db.relationship("Company", back_populates="owner", uselist=False)
@@ -105,6 +106,7 @@ class Job(db.Model):
     industry = db.Column(db.String(80))
     deadline = db.Column(db.Date)
     status = db.Column(db.String(20), nullable=False, default="pending")  # pending/approved/blocked/closed
+    view_count = db.Column(db.Integer, nullable=False, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
@@ -210,3 +212,14 @@ class AdminActionLog(db.Model):
     target_type = db.Column(db.String(20))  # job/company/user/report
     target_id = db.Column(db.Integer)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class LoginThrottle(db.Model):
+    __tablename__ = "login_throttles"
+
+    throttle_id = db.Column(db.Integer, primary_key=True)
+    throttle_key = db.Column(db.String(64), unique=True, nullable=False)
+    failed_attempts = db.Column(db.Integer, nullable=False, default=0)
+    window_started_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    locked_until = db.Column(db.DateTime)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -1,8 +1,10 @@
+import click
 from flask import Flask, render_template, session
 from sqlalchemy import inspect, text
 
 from config import Config
 from extensions import csrf, db
+from job_lifecycle import close_expired_jobs
 from models import Job, User
 from routes.admin import admin_bp
 from routes.applications import applications_bp
@@ -40,6 +42,15 @@ def ensure_schema_compatibility():
         )
         db.session.commit()
 
+    user_columns = {column["name"] for column in inspector.get_columns("users")}
+    if "password_reset_nonce" not in user_columns:
+        db.session.execute(text("ALTER TABLE users ADD COLUMN password_reset_nonce VARCHAR(64)"))
+        db.session.commit()
+
+    if "view_count" not in job_columns:
+        db.session.execute(text("ALTER TABLE jobs ADD COLUMN view_count INTEGER NOT NULL DEFAULT 0"))
+        db.session.commit()
+
 
 def create_app():
     app = Flask(__name__)
@@ -56,6 +67,16 @@ def create_app():
     app.register_blueprint(admin_bp)
     app.register_blueprint(chat_bp)
     app.register_blueprint(reviews_bp)
+
+    @app.before_request
+    def synchronize_expired_jobs():
+        close_expired_jobs()
+
+    @app.cli.command("close-expired-jobs")
+    def close_expired_jobs_command():
+        """Close jobs whose deadline has passed; safe to call from cron."""
+        count = close_expired_jobs()
+        click.echo(f"Closed {count} expired job(s).")
 
     @app.context_processor
     def inject_current_user():

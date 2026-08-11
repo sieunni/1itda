@@ -1,0 +1,167 @@
+import atexit
+import os
+import shutil
+import tempfile
+import unittest
+from datetime import date, timedelta
+from unittest.mock import patch
+
+
+TEST_DIR = tempfile.mkdtemp(prefix="1itda-security-tests-")
+atexit.register(shutil.rmtree, TEST_DIR, ignore_errors=True)
+os.environ["DATABASE_URL"] = "sqlite:///" + os.path.join(TEST_DIR, "test.db").replace("\\", "/")
+os.environ["SECRET_KEY"] = "security-test-secret"
+
+from app import app
+from extensions import db
+from job_lifecycle import close_expired_jobs
+from models import Application, Company, Job, LoginThrottle, User
+from werkzeug.security import check_password_hash, generate_password_hash
+
+
+class SecurityAndJobFeatureTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        app.config.update(TESTING=True, WTF_CSRF_ENABLED=False)
+
+    def setUp(self):
+        self.client = app.test_client()
+        with app.app_context():
+            db.drop_all()
+            db.create_all()
+            company_user = User(
+                email="company@example.com",
+                password_hash=generate_password_hash("company-password"),
+                role="company",
+                name="기업 담당자",
+            )
+            self.jobseeker = User(
+                email="user@example.com",
+                password_hash=generate_password_hash("old-password"),
+                role="jobseeker",
+                name="구직자",
+            )
+            self.admin = User(
+                email="admin@example.com",
+                password_hash=generate_password_hash("admin-password"),
+                role="admin",
+                name="관리자",
+            )
+            db.session.add_all([company_user, self.jobseeker, self.admin])
+            db.session.flush()
+            company = Company(user_id=company_user.user_id, company_name="테스트 기업")
+            db.session.add(company)
+            db.session.flush()
+            yesterday = date.today() - timedelta(days=1)
+            tomorrow = date.today() + timedelta(days=1)
+            jobs = [
+                Job(company_id=company.company_id, title="지난 공개 공고", content="내용", deadline=yesterday, status="approved"),
+                Job(company_id=company.company_id, title="지난 미승인 공고", content="비공개", deadline=yesterday, status="pending"),
+                Job(company_id=company.company_id, title="진행 공고", content="내용", deadline=tomorrow, status="approved"),
+            ]
+            db.session.add_all(jobs)
+            db.session.commit()
+            self.ids = {
+                "user": self.jobseeker.user_id,
+                "admin": self.admin.user_id,
+                "expired_approved": jobs[0].job_id,
+                "expired_pending": jobs[1].job_id,
+                "active": jobs[2].job_id,
+            }
+
+    def test_expired_approved_job_closes_but_pending_job_stays_private(self):
+        with app.app_context():
+            self.assertEqual(close_expired_jobs(), 1)
+            self.assertEqual(db.session.get(Job, self.ids["expired_approved"]).status, "closed")
+            self.assertEqual(db.session.get(Job, self.ids["expired_pending"]).status, "pending")
+
+        self.assertEqual(self.client.get(f'/jobs/{self.ids["expired_approved"]}').status_code, 404)
+        self.assertEqual(self.client.get(f'/jobs/{self.ids["expired_pending"]}').status_code, 404)
+
+    def test_view_count_is_once_per_browser_session(self):
+        url = f'/jobs/{self.ids["active"]}'
+        self.assertEqual(self.client.get(url).status_code, 200)
+        self.assertEqual(self.client.get(url).status_code, 200)
+        with app.app_context():
+            self.assertEqual(db.session.get(Job, self.ids["active"]).view_count, 1)
+
+        other_client = app.test_client()
+        self.assertEqual(other_client.get(url).status_code, 200)
+        with app.app_context():
+            self.assertEqual(db.session.get(Job, self.ids["active"]).view_count, 2)
+
+    def test_applicant_can_reopen_closed_job_but_anonymous_user_cannot(self):
+        with app.app_context():
+            job = db.session.get(Job, self.ids["expired_approved"])
+            job.status = "closed"
+            db.session.add(
+                Application(user_id=self.ids["user"], job_id=job.job_id, status="submitted")
+            )
+            db.session.commit()
+
+        url = f'/jobs/{self.ids["expired_approved"]}'
+        self.assertEqual(self.client.get(url).status_code, 404)
+        with self.client.session_transaction() as session:
+            session["user_id"] = self.ids["user"]
+            session["role"] = "jobseeker"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("마감".encode(), response.data)
+        self.assertIn(b"disabled", response.data)
+
+    def test_user_login_locks_after_five_failures_and_success_clears_failures(self):
+        data = {"email": "user@example.com", "password": "wrong"}
+        for _ in range(5):
+            self.assertEqual(self.client.post("/login", data=data).status_code, 401)
+        self.assertEqual(
+            self.client.post("/login", data={**data, "password": "old-password"}).status_code,
+            401,
+        )
+        with app.app_context():
+            throttle = LoginThrottle.query.one()
+            throttle.locked_until = None
+            db.session.commit()
+        self.assertEqual(
+            self.client.post("/login", data={**data, "password": "old-password"}).status_code,
+            302,
+        )
+        with app.app_context():
+            self.assertEqual(LoginThrottle.query.count(), 0)
+
+    def test_admin_login_locks_after_three_failures(self):
+        data = {"email": "admin@example.com", "password": "wrong"}
+        for _ in range(3):
+            self.assertEqual(self.client.post("/login", data=data).status_code, 401)
+        with app.app_context():
+            throttle = LoginThrottle.query.one()
+            self.assertIsNotNone(throttle.locked_until)
+
+    def test_password_reset_is_single_use_and_changes_password(self):
+        with patch("routes.auth._send_reset_email") as send:
+            response = self.client.post("/forgot-password", data={"email": "user@example.com"})
+        self.assertEqual(response.status_code, 302)
+        reset_url = send.call_args.args[1]
+        token = reset_url.rsplit("/", 1)[-1]
+
+        response = self.client.post(
+            f"/reset-password/{token}",
+            data={"new_password": "new-password", "new_password_confirm": "new-password"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(self.client.get(f"/reset-password/{token}").status_code, 302)
+        with app.app_context():
+            user = db.session.get(User, self.ids["user"])
+            self.assertTrue(check_password_hash(user.password_hash, "new-password"))
+
+    def test_unknown_reset_email_has_same_response_and_sends_nothing(self):
+        with patch("routes.auth._send_reset_email") as send:
+            response = self.client.post(
+                "/forgot-password", data={"email": "missing@example.com"}, follow_redirects=True
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("가입된 계정인 경우".encode(), response.data)
+        send.assert_not_called()
+
+
+if __name__ == "__main__":
+    unittest.main()

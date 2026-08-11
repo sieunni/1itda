@@ -2,12 +2,12 @@ from datetime import date, datetime
 from math import ceil
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, session, url_for
-from sqlalchemy import case, or_
+from sqlalchemy import case, or_, update
 from sqlalchemy.orm import joinedload
 
 from choices import INDUSTRY_CHOICES, REGION_CHOICES
 from extensions import db
-from models import REPORT_REASON_LABELS, Company, Job, Report, Scrap, User
+from models import Application, REPORT_REASON_LABELS, Company, Job, Report, Scrap, User
 
 jobs_bp = Blueprint("jobs", __name__, url_prefix="/jobs")
 
@@ -100,6 +100,7 @@ def _deadline_info(value):
 def _job_to_view(job):
     deadline = _deadline_info(job.deadline)
     company = job.company
+    is_closed = job.status == "closed" or deadline["is_closed"]
 
     return {
         "job_id": job.job_id,
@@ -111,8 +112,9 @@ def _job_to_view(job):
         "industry": job.industry or "업종 미정",
         "created_at": _format_date(job.created_at),
         "deadline": deadline["display"],
-        "deadline_label": deadline["label"],
-        "is_closed": deadline["is_closed"],
+        "deadline_label": "마감" if is_closed else deadline["label"],
+        "is_closed": is_closed,
+        "view_count": job.view_count or 0,
     }
 
 
@@ -209,20 +211,42 @@ def job_detail(job_id):
     if job is None:
         abort(404)
 
-    is_preview = job.status != "approved"
     user_id = session.get("user_id")
     user = db.session.get(User, user_id) if user_id else None
+    is_public = job.status == "approved"
+    is_owner = bool(
+        user
+        and user.role == "company"
+        and job.company
+        and job.company.user_id == user.user_id
+    )
+    is_admin = bool(user and user.role == "admin")
+    is_applicant = bool(
+        user_id
+        and job.status == "closed"
+        and Application.query.filter_by(user_id=user_id, job_id=job.job_id).first()
+    )
 
-    if is_preview:
-        is_owner = bool(
-            user
-            and user.role == "company"
-            and job.company
-            and job.company.user_id == user.user_id
-        )
-        is_admin = bool(user and user.role == "admin")
-        if not is_owner and not is_admin:
-            abort(404)
+    # Closed jobs stay hidden from the public, while people who actually
+    # applied retain access to the posting attached to their application.
+    if not is_public and not (is_owner or is_admin or is_applicant):
+        abort(404)
+    is_preview = not is_public and not is_applicant
+
+    if job.status == "approved":
+        viewed_job_ids = set(session.get("viewed_job_ids", []))
+        if job.job_id not in viewed_job_ids:
+            # Increment in the database so simultaneous first views do not
+            # overwrite one another with the same value.
+            db.session.execute(
+                update(Job)
+                .where(Job.job_id == job.job_id)
+                .values(view_count=Job.view_count + 1)
+            )
+            db.session.commit()
+            db.session.refresh(job)
+            viewed_job_ids.add(job.job_id)
+            session["viewed_job_ids"] = sorted(viewed_job_ids)[-200:]
 
     is_scrapped = False
     is_reported = False
