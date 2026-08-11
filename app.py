@@ -47,6 +47,13 @@ def ensure_schema_compatibility():
         db.session.execute(text("ALTER TABLE users ADD COLUMN password_reset_nonce VARCHAR(64)"))
         db.session.commit()
 
+    resume_columns = {column["name"] for column in inspector.get_columns("resumes")}
+    if "is_deleted" not in resume_columns:
+        db.session.execute(
+            text("ALTER TABLE resumes ADD COLUMN is_deleted BOOLEAN NOT NULL DEFAULT 0")
+        )
+        db.session.commit()
+
     if "view_count" not in job_columns:
         db.session.execute(text("ALTER TABLE jobs ADD COLUMN view_count INTEGER NOT NULL DEFAULT 0"))
         db.session.commit()

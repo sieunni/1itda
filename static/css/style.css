@@ -1243,6 +1243,11 @@ a.stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(15,
 .resume-preview-text small { color: var(--color-muted); font-size: .75rem; }
 .resume-preview-arrow { flex: 0 0 auto; color: var(--color-primary) !important; font-size: 1rem !important; }
 .resume-preview-link:hover strong { color: var(--color-primary); }
+.resume-list li { display: flex; align-items: center; gap: 8px; }
+.resume-list .resume-preview-link { min-width: 0; flex: 1; }
+.resume-list form { flex: 0 0 auto; margin: 0; }
+.resume-delete-button { padding: 5px 8px; color: #b91c1c; background: #fff; border: 1px solid #fecaca; border-radius: 7px; font: inherit; font-size: .72rem; font-weight: 700; cursor: pointer; }
+.resume-delete-button:hover { background: #fef2f2; }
 .mypage-resume-upload { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-bottom: 12px; padding-bottom: 14px; border-bottom: 1px solid var(--color-border); }
 .mypage-resume-upload label { display: flex; align-items: center; gap: 7px; min-width: 0; padding: 10px; background: #f8fafc; border: 1px dashed #93c5fd; border-radius: 8px; cursor: pointer; }
 .mypage-resume-upload label:hover { background: #eff6ff; }
@@ -1253,6 +1258,15 @@ a.stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(15,
 .mypage-resume-upload .btn { padding: 8px 12px; border: 0; font-size: .78rem; cursor: pointer; }
 .mypage-resume-filename { grid-column: 1 / -1; min-width: 0; color: var(--color-primary-dark); font-size: .72rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .resume-list { max-height: 235px; overflow-y: auto; }
+.resume-management { display: flex; flex-direction: column; gap: 20px; }
+.resume-management__header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
+.resume-management__header h1 { margin: 7px 0; font-size: 1.8rem; }
+.resume-management__header p { margin: 0; color: var(--color-muted); }
+.resume-management__list { max-height: none; }
+
+@media (max-width: 700px) {
+  .resume-management__header { align-items: flex-start; flex-direction: column; }
+}
 .compact-empty { margin: 22px 0 10px; text-align: center; }
 
 .edit-panel { border-color: #bfdbfe; }

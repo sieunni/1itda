@@ -15,7 +15,7 @@ os.environ["SECRET_KEY"] = "security-test-secret"
 from app import app
 from extensions import db
 from job_lifecycle import close_expired_jobs
-from models import Application, Company, Job, LoginThrottle, User
+from models import Application, Company, Job, LoginThrottle, Resume, User
 from werkzeug.security import check_password_hash, generate_password_hash
 
 
@@ -89,6 +89,106 @@ class SecurityAndJobFeatureTest(unittest.TestCase):
         self.assertEqual(other_client.get(url).status_code, 200)
         with app.app_context():
             self.assertEqual(db.session.get(Job, self.ids["active"]).view_count, 2)
+
+    def test_unused_resume_can_be_deleted_with_its_file(self):
+        with tempfile.TemporaryDirectory(prefix="1itda-resume-delete-") as upload_dir:
+            stored_name = "unused.pdf"
+            file_path = os.path.join(upload_dir, stored_name)
+            with open(file_path, "wb") as resume_file:
+                resume_file.write(b"test resume")
+            with app.app_context():
+                resume = Resume(
+                    user_id=self.ids["user"],
+                    file_path=stored_name,
+                    original_filename="unused.pdf",
+                )
+                db.session.add(resume)
+                db.session.commit()
+                resume_id = resume.resume_id
+
+            with self.client.session_transaction() as session:
+                session["user_id"] = self.ids["user"]
+                session["role"] = "jobseeker"
+            original_upload_folder = app.config["UPLOAD_FOLDER"]
+            app.config["UPLOAD_FOLDER"] = upload_dir
+            try:
+                response = self.client.post(f"/mypage/resumes/{resume_id}/delete")
+            finally:
+                app.config["UPLOAD_FOLDER"] = original_upload_folder
+
+            self.assertEqual(response.status_code, 302)
+            self.assertFalse(os.path.exists(file_path))
+            with app.app_context():
+                self.assertIsNone(db.session.get(Resume, resume_id))
+
+    def test_resume_stat_opens_management_page_with_active_resumes(self):
+        with app.app_context():
+            db.session.add_all(
+                [
+                    Resume(
+                        user_id=self.ids["user"],
+                        file_path="active.pdf",
+                        original_filename="active.pdf",
+                    ),
+                    Resume(
+                        user_id=self.ids["user"],
+                        file_path="deleted.pdf",
+                        original_filename="deleted.pdf",
+                        is_deleted=True,
+                    ),
+                ]
+            )
+            db.session.commit()
+
+        with self.client.session_transaction() as session:
+            session["user_id"] = self.ids["user"]
+            session["role"] = "jobseeker"
+        mypage = self.client.get("/mypage")
+        self.assertIn(b'href="/mypage/resumes"', mypage.data)
+        management = self.client.get("/mypage/resumes")
+        self.assertEqual(management.status_code, 200)
+        self.assertIn("이력서 관리".encode(), management.data)
+        self.assertIn(b"active.pdf", management.data)
+        self.assertNotIn(b"deleted.pdf", management.data)
+
+    def test_submitted_resume_is_removed_from_management_but_submission_is_preserved(self):
+        with app.app_context():
+            resume = Resume(
+                user_id=self.ids["user"],
+                file_path="submitted.pdf",
+                original_filename="submitted.pdf",
+            )
+            db.session.add(resume)
+            db.session.flush()
+            db.session.add(
+                Application(
+                    user_id=self.ids["user"],
+                    job_id=self.ids["active"],
+                    resume_id=resume.resume_id,
+                    resume_snapshot=resume.original_filename,
+                )
+            )
+            db.session.commit()
+            resume_id = resume.resume_id
+
+        with self.client.session_transaction() as session:
+            session["user_id"] = self.ids["user"]
+            session["role"] = "jobseeker"
+        response = self.client.post(
+            f"/mypage/resumes/{resume_id}/delete", follow_redirects=True
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("기존 지원서의 제출본은 보존됩니다.".encode(), response.data)
+        with app.app_context():
+            resume = db.session.get(Resume, resume_id)
+            self.assertIsNotNone(resume)
+            self.assertTrue(resume.is_deleted)
+            application = Application.query.filter_by(resume_id=resume_id).one()
+            self.assertEqual(application.resume_snapshot, "submitted.pdf")
+        mypage = self.client.get("/mypage")
+        self.assertNotIn(b"submitted.pdf", mypage.data)
+        applications = self.client.get("/mypage/applications")
+        self.assertIn(b"submitted.pdf", applications.data)
 
     def test_applicant_can_reopen_closed_job_but_anonymous_user_cannot(self):
         with app.app_context():

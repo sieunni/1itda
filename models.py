@@ -122,6 +122,7 @@ class Resume(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.user_id"), nullable=False)
     file_path = db.Column(db.String(255))  # 서버 저장 경로(난수 파일명)
     original_filename = db.Column(db.String(255))
+    is_deleted = db.Column(db.Boolean, default=False, nullable=False)
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 

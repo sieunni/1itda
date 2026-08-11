@@ -15,6 +15,11 @@ profile_bp = Blueprint("profile", __name__)
 ALLOWED_RESUME_EXTENSIONS = {"pdf", "doc", "docx"}
 
 
+def _resume_management_redirect():
+    endpoint = "profile.my_resumes" if request.form.get("return_to") == "resumes" else "profile.mypage"
+    return redirect(url_for(endpoint))
+
+
 def _require_active_user():
     user_id = session.get("user_id")
     if not user_id:
@@ -44,12 +49,12 @@ def resume_upload():
     original_name = secure_filename(uploaded_file.filename) if uploaded_file and uploaded_file.filename else ""
     if not original_name or "." not in original_name:
         flash("등록할 이력서 파일을 선택해 주세요.", "error")
-        return redirect(url_for("profile.mypage"))
+        return _resume_management_redirect()
 
     extension = original_name.rsplit(".", 1)[1].lower()
     if extension not in ALLOWED_RESUME_EXTENSIONS:
         flash("이력서는 PDF, DOC, DOCX 파일만 등록할 수 있습니다.", "error")
-        return redirect(url_for("profile.mypage"))
+        return _resume_management_redirect()
 
     stored_filename = f"{uuid.uuid4().hex}.{extension}"
     saved_path = os.path.join(current_app.config["UPLOAD_FOLDER"], stored_filename)
@@ -70,7 +75,7 @@ def resume_upload():
         flash("이력서를 등록하지 못했습니다. 잠시 후 다시 시도해 주세요.", "error")
     else:
         flash("새 이력서가 등록되었습니다.", "success")
-    return redirect(url_for("profile.mypage"))
+    return _resume_management_redirect()
 
 
 @profile_bp.route("/mypage/resumes/<int:resume_id>/preview")
@@ -101,6 +106,66 @@ def resume_preview(resume_id):
         download_name=resume.original_filename or stored_filename,
         conditional=True,
     )
+
+
+@profile_bp.post("/mypage/resumes/<int:resume_id>/delete")
+def resume_delete(resume_id):
+    user = _require_active_user()
+    if not user:
+        return redirect(url_for("auth.login"))
+    if user.role != "jobseeker":
+        abort(403)
+
+    resume = Resume.query.filter_by(resume_id=resume_id, user_id=user.user_id).first()
+    if resume is None:
+        abort(404)
+
+    if Application.query.filter_by(resume_id=resume.resume_id).first():
+        resume.is_deleted = True
+        try:
+            db.session.commit()
+        except SQLAlchemyError:
+            db.session.rollback()
+            flash("이력서를 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.", "error")
+        else:
+            flash("내 이력서에서 삭제했습니다. 기존 지원서의 제출본은 보존됩니다.", "success")
+        return _resume_management_redirect()
+
+    stored_filename = os.path.basename(resume.file_path) if resume.file_path else None
+    can_delete_file = bool(stored_filename and stored_filename == resume.file_path)
+    db.session.delete(resume)
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        flash("이력서를 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.", "error")
+    else:
+        if can_delete_file:
+            file_path = os.path.join(current_app.config["UPLOAD_FOLDER"], stored_filename)
+            try:
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+            except OSError:
+                current_app.logger.exception("Failed to remove resume file: %s", stored_filename)
+        flash("이력서가 삭제되었습니다.", "success")
+
+    return _resume_management_redirect()
+
+
+@profile_bp.route("/mypage/resumes")
+def my_resumes():
+    user = _require_active_user()
+    if not user:
+        return redirect(url_for("auth.login"))
+    if user.role != "jobseeker":
+        abort(403)
+
+    resumes = (
+        Resume.query.filter_by(user_id=user.user_id, is_deleted=False)
+        .order_by(Resume.uploaded_at.desc())
+        .all()
+    )
+    return render_template("profile/resumes.html", resumes=resumes)
 
 
 @profile_bp.route("/mypage", methods=["GET", "POST"])
@@ -166,7 +231,7 @@ def mypage():
         .all()
     )
     resumes = (
-        Resume.query.filter_by(user_id=user.user_id)
+        Resume.query.filter_by(user_id=user.user_id, is_deleted=False)
         .order_by(Resume.uploaded_at.desc())
         .limit(5)
         .all()
@@ -174,7 +239,7 @@ def mypage():
     stats = {
         "applications": Application.query.filter_by(user_id=user.user_id).count(),
         "scraps": Scrap.query.filter_by(user_id=user.user_id).count(),
-        "resumes": Resume.query.filter_by(user_id=user.user_id).count(),
+        "resumes": Resume.query.filter_by(user_id=user.user_id, is_deleted=False).count(),
     }
     return render_template(
         "profile/mypage.html",

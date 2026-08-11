@@ -50,7 +50,7 @@ def apply(job_id):
         return redirect(url_for("profile.mypage"))
 
     resumes = (
-        Resume.query.filter_by(user_id=user.user_id)
+        Resume.query.filter_by(user_id=user.user_id, is_deleted=False)
         .order_by(Resume.uploaded_at.desc())
         .all()
     )
@@ -85,7 +85,11 @@ def apply(job_id):
         db.session.add(resume)
         db.session.flush()
     elif selected_resume_id:
-        resume = Resume.query.filter_by(resume_id=selected_resume_id, user_id=user.user_id).first()
+        resume = Resume.query.filter_by(
+            resume_id=selected_resume_id,
+            user_id=user.user_id,
+            is_deleted=False,
+        ).first()
         if not resume:
             flash("선택한 이력서를 확인할 수 없습니다.", "error")
             return render_template("applications/apply.html", job=job, user=user, resumes=resumes), 400
