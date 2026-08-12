@@ -90,6 +90,36 @@ class SecurityAndJobFeatureTest(unittest.TestCase):
         with app.app_context():
             self.assertEqual(db.session.get(Job, self.ids["active"]).view_count, 2)
 
+    def test_job_list_can_sort_by_view_count(self):
+        with app.app_context():
+            company_id = db.session.get(Job, self.ids["active"]).company_id
+            tomorrow = date.today() + timedelta(days=1)
+            popular = Job(
+                company_id=company_id,
+                title="조회수 높은 공고",
+                content="내용",
+                deadline=tomorrow,
+                status="approved",
+                view_count=30,
+            )
+            modest = Job(
+                company_id=company_id,
+                title="조회수 중간 공고",
+                content="내용",
+                deadline=tomorrow,
+                status="approved",
+                view_count=5,
+            )
+            db.session.add_all([popular, modest])
+            db.session.commit()
+
+        response = self.client.get("/jobs?sort=views")
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        self.assertIn('option value="views" selected', body)
+        self.assertLess(body.index("조회수 높은 공고"), body.index("조회수 중간 공고"))
+        self.assertLess(body.index("조회수 중간 공고"), body.index("진행 공고"))
+
     def test_unused_resume_can_be_deleted_with_its_file(self):
         with tempfile.TemporaryDirectory(prefix="1itda-resume-delete-") as upload_dir:
             stored_name = "unused.pdf"

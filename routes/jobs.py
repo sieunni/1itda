@@ -17,6 +17,7 @@ SORT_OPTIONS = (
     ("latest", "최신순"),
     ("updated", "수정순"),
     ("deadline", "마감순"),
+    ("views", "조회수순"),
 )
 SORT_VALUES = {value for value, _label in SORT_OPTIONS}
 
@@ -141,6 +142,8 @@ def _job_order_by(sort):
             Job.created_at.desc(),
             Job.job_id.desc(),
         )
+    if sort == "views":
+        return (Job.view_count.desc(), Job.created_at.desc(), Job.job_id.desc())
 
     return (Job.created_at.desc(), Job.job_id.desc())
 
