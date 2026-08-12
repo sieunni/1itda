@@ -419,10 +419,21 @@ class SecurityAndJobFeatureTest(unittest.TestCase):
             finally:
                 app.config["UPLOAD_FOLDER"] = original_upload_folder
 
-    def test_app_creation_rejects_missing_secret_key(self):
-        with patch.object(Config, "SECRET_KEY", None):
-            with self.assertRaisesRegex(RuntimeError, "SECRET_KEY must be set"):
+    def test_production_app_creation_rejects_missing_secret_key(self):
+        with (
+            patch.object(Config, "APP_ENV", "production"),
+            patch.object(Config, "SECRET_KEY", None),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "Production SECRET_KEY must be set"):
                 create_app()
+
+    def test_development_app_can_start_with_generated_secret_key(self):
+        with (
+            patch.object(Config, "APP_ENV", "development"),
+            patch.object(Config, "SECRET_KEY", "development-generated-secret-key-value"),
+        ):
+            development_app = create_app()
+        self.assertGreaterEqual(len(development_app.config["SECRET_KEY"]), 32)
 
     def test_seed_script_refuses_non_development_environment(self):
         with patch.dict(os.environ, {"APP_ENV": "production"}, clear=False):

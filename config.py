@@ -1,4 +1,5 @@
 import os
+import secrets
 from datetime import timedelta
 
 from dotenv import load_dotenv
@@ -13,8 +14,10 @@ os.makedirs(os.path.join(BASE_DIR, "uploads"), exist_ok=True)
 
 
 class Config:
-    APP_ENV = os.environ.get("APP_ENV", "production").lower()
-    SECRET_KEY = os.environ.get("SECRET_KEY")
+    APP_ENV = os.environ.get("APP_ENV", "development").lower()
+    SECRET_KEY = os.environ.get("SECRET_KEY") or (
+        secrets.token_hex(32) if APP_ENV == "development" else None
+    )
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         "DATABASE_URL", f"sqlite:///{os.path.join(BASE_DIR, 'instance', '1itda.db')}"
     )

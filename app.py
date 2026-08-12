@@ -84,9 +84,11 @@ def create_app():
     app.config.from_object(Config)
 
     secret_key = app.config.get("SECRET_KEY")
-    if not secret_key or len(secret_key) < 32:
+    if app.config["APP_ENV"] == "production" and (
+        not secret_key or len(secret_key) < 32
+    ):
         raise RuntimeError(
-            "SECRET_KEY must be set to an environment-specific value of at least 32 characters."
+            "Production SECRET_KEY must be set to an environment-specific value of at least 32 characters."
         )
     if app.config["APP_ENV"] == "production" and app.config["DEBUG"]:
         raise RuntimeError("FLASK_DEBUG must be disabled in production.")
