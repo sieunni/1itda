@@ -261,10 +261,10 @@ class ReviewFeatureTest(unittest.TestCase):
             self.assertEqual(ReviewReport.query.filter_by(reporter_id=self.ids["admin"]).count(), 0)
 
         report_id = self.create_report(review_id, self.ids["other"])
-        listing = self.client.get("/admin/reports?status=pending")
+        listing = self.client.get("/admin/reports/reviews?status=pending")
         self.assertEqual(listing.status_code, 200)
-        self.assertIn(b"#" + str(report_id).encode(), listing.data)
-        self.assertEqual(self.client.post(f"/admin/reports/{report_id}/dismiss").status_code, 302)
+        self.assertIn("좋은 개발 문화".encode(), listing.data)
+        self.assertEqual(self.client.post(f"/admin/reports/reviews/{report_id}/dismiss").status_code, 302)
 
     def test_duplicate_report_blocked_but_different_users_allowed(self):
         review_id = self.create_review()
@@ -286,16 +286,50 @@ class ReviewFeatureTest(unittest.TestCase):
             with self.subTest(role=role):
                 self.login_as(user_id, role)
                 self.assertEqual(self.client.get("/admin/reports").status_code, 403)
+                self.assertEqual(self.client.get("/admin/reports/jobs").status_code, 403)
+                self.assertEqual(self.client.get("/admin/reports/reviews").status_code, 403)
+
+    def test_admin_reports_hub_links_to_split_report_pages(self):
+        self.login_as(self.ids["admin"], "admin")
+        response = self.client.get("/admin/reports")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"/admin/reports/jobs", response.data)
+        self.assertIn(b"/admin/reports/reviews", response.data)
+        self.assertNotIn("공고 신고 미처리".encode(), response.data)
+        self.assertNotIn("리뷰 신고 미처리".encode(), response.data)
+        self.assertNotIn("공고 신고 전체".encode(), response.data)
+        self.assertNotIn("리뷰 신고 전체".encode(), response.data)
+
+    def test_admin_dashboard_recent_reports_include_jobs_and_reviews(self):
+        review_id = self.create_review()
+        self.create_report(review_id)
+        job_id = self.create_job()
+        self.create_job_report(job_id)
+        with app.app_context():
+            db.session.get(Review, review_id).is_hidden = True
+            db.session.commit()
+        self.login_as(self.ids["admin"], "admin")
+
+        response = self.client.get("/admin/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("숨김 리뷰".encode(), response.data)
+        self.assertIn("신고 대상 공고".encode(), response.data)
+        self.assertIn("좋은 개발 문화".encode(), response.data)
+        self.assertIn("공고 신고".encode(), response.data)
+        self.assertIn("리뷰 신고".encode(), response.data)
+        self.assertIn(b"/admin/reports/jobs?status=pending", response.data)
+        self.assertIn(b"/admin/reports/reviews?status=pending", response.data)
+        self.assertIn(b"/admin/reports/reviews?status=hidden", response.data)
 
     def test_admin_lists_and_dismisses_report_idempotently(self):
         review_id = self.create_review()
         report_id = self.create_report(review_id)
         self.login_as(self.ids["admin"], "admin")
-        listing = self.client.get("/admin/reports?status=pending")
+        listing = self.client.get("/admin/reports/reviews?status=pending")
         self.assertEqual(listing.status_code, 200)
-        self.assertIn(b"#" + str(report_id).encode(), listing.data)
+        self.assertIn("허위 정보".encode(), listing.data)
 
-        response = self.client.post(f"/admin/reports/{report_id}/dismiss")
+        response = self.client.post(f"/admin/reports/reviews/{report_id}/dismiss")
         self.assertEqual(response.status_code, 302)
         with app.app_context():
             report = db.session.get(ReviewReport, report_id)
@@ -303,14 +337,14 @@ class ReviewFeatureTest(unittest.TestCase):
             self.assertEqual(report.handled_by, self.ids["admin"])
             self.assertIsNotNone(report.handled_at)
             self.assertFalse(db.session.get(Review, review_id).is_hidden)
-        self.assertEqual(self.client.post(f"/admin/reports/{report_id}/dismiss").status_code, 302)
+        self.assertEqual(self.client.post(f"/admin/reports/reviews/{report_id}/dismiss").status_code, 302)
 
     def test_admin_hide_resolves_all_pending_and_controls_visibility(self):
         review_id = self.create_review()
         first_id = self.create_report(review_id, self.ids["other"])
         second_id = self.create_report(review_id, self.ids["owner"])
         self.login_as(self.ids["admin"], "admin")
-        self.assertEqual(self.client.post(f"/admin/reports/{first_id}/hide").status_code, 302)
+        self.assertEqual(self.client.post(f"/admin/reports/reviews/{first_id}/hide").status_code, 302)
         with app.app_context():
             review = db.session.get(Review, review_id)
             self.assertTrue(review.is_hidden)
@@ -328,7 +362,7 @@ class ReviewFeatureTest(unittest.TestCase):
         detail = self.client.get(f"/reviews/{review_id}")
         self.assertEqual(detail.status_code, 200)
         self.assertIn("좋은 개발 문화".encode(), detail.data)
-        self.assertEqual(self.client.post(f"/admin/reports/{second_id}/hide").status_code, 302)
+        self.assertEqual(self.client.post(f"/admin/reports/reviews/{second_id}/hide").status_code, 302)
 
     def test_admin_post_csrf_and_missing_ids(self):
         review_id = self.create_review()
@@ -336,11 +370,11 @@ class ReviewFeatureTest(unittest.TestCase):
         self.login_as(self.ids["admin"], "admin")
         app.config["WTF_CSRF_ENABLED"] = True
         try:
-            self.assertEqual(self.client.post(f"/admin/reports/{report_id}/dismiss").status_code, 400)
+            self.assertEqual(self.client.post(f"/admin/reports/reviews/{report_id}/dismiss").status_code, 400)
         finally:
             app.config["WTF_CSRF_ENABLED"] = False
-        self.assertEqual(self.client.post("/admin/reports/999999/dismiss").status_code, 404)
-        self.assertEqual(self.client.post("/admin/reports/999999/hide").status_code, 404)
+        self.assertEqual(self.client.post("/admin/reports/reviews/999999/dismiss").status_code, 404)
+        self.assertEqual(self.client.post("/admin/reports/reviews/999999/hide").status_code, 404)
         self.login_as(self.ids["other"], "jobseeker")
         self.assertEqual(self.client.get("/reviews/999999/report").status_code, 404)
 
@@ -351,7 +385,7 @@ class ReviewFeatureTest(unittest.TestCase):
         self.login_as(self.ids["admin"], "admin")
 
         response = self.client.post(
-            f"/admin/reports/{first_report_id}/resolve",
+            f"/admin/reports/jobs/{first_report_id}/resolve",
             data={"decision": "reviewed"},
         )
         self.assertEqual(response.status_code, 302)
@@ -363,7 +397,7 @@ class ReviewFeatureTest(unittest.TestCase):
             }
             self.assertEqual(statuses, {"reviewed"})
 
-        listing = self.client.get("/admin/reports?status=reviewed")
+        listing = self.client.get("/admin/reports/jobs?status=reviewed")
         self.assertEqual(listing.status_code, 200)
         self.assertIn("차단 완료".encode(), listing.data)
 
@@ -374,12 +408,12 @@ class ReviewFeatureTest(unittest.TestCase):
 
         self.assertEqual(
             self.client.post(
-                f"/admin/reports/{report_id}/resolve",
+                f"/admin/reports/jobs/{report_id}/resolve",
                 data={"decision": "rejected"},
             ).status_code,
             302,
         )
-        rejected = self.client.get("/admin/reports?status=rejected")
+        rejected = self.client.get("/admin/reports/jobs?status=rejected")
         self.assertEqual(rejected.status_code, 200)
         self.assertNotIn("미처리로 되돌리기".encode(), rejected.data)
         self.assertIn("기각".encode(), rejected.data)
@@ -387,7 +421,7 @@ class ReviewFeatureTest(unittest.TestCase):
 
         self.assertEqual(
             self.client.post(
-                f"/admin/reports/{report_id}/resolve",
+                f"/admin/reports/jobs/{report_id}/resolve",
                 data={"decision": "pending"},
             ).status_code,
             302,
@@ -430,7 +464,7 @@ class ReviewFeatureTest(unittest.TestCase):
         self.login_as(self.ids["admin"], "admin")
 
         response = self.client.post(
-            f"/admin/reports/{report_id}/resolve",
+            f"/admin/reports/jobs/{report_id}/resolve",
             data={"decision": "invalid"},
         )
         self.assertEqual(response.status_code, 302)

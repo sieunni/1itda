@@ -33,7 +33,11 @@
       <span class="admin-stat-label">차단 공고</span>
       <strong class="admin-stat-value">{{ stats.blocked_jobs }}</strong>
     </a>
-    <a class="admin-stat-card" href="{{ url_for('admin.reports', status='pending') }}">
+    <a class="admin-stat-card" href="{{ url_for('admin.review_reports', status='hidden') }}">
+      <span class="admin-stat-label">숨김 리뷰</span>
+      <strong class="admin-stat-value">{{ stats.hidden_reviews }}</strong>
+    </a>
+    <a class="admin-stat-card" href="{{ url_for('admin.reports') }}">
       <span class="admin-stat-label">미처리 신고</span>
       <strong class="admin-stat-value">{{ stats.pending_reports }}</strong>
     </a>
@@ -42,7 +46,7 @@
   <nav class="admin-quick-nav">
     <a href="{{ url_for('admin.users') }}">회원 관리</a>
     <a href="{{ url_for('admin.jobs') }}">공고 관리</a>
-    <a href="{{ url_for('admin.reports', status='pending') }}">신고 관리</a>
+    <a href="{{ url_for('admin.reports') }}">신고 관리</a>
     <a href="{{ url_for('admin.logs') }}">처리 이력</a>
   </nav>
 
@@ -75,12 +79,12 @@
       <ul class="admin-dashboard-list">
         {% for report in recent_reports %}
         <li>
-          <a href="{{ url_for('admin.reports', status=report.status) }}">
+          <a href="{{ report.href }}">
             <span>
-              <strong>{% if report.target_type == 'job' and report_jobs.get(report.target_id) %}{{ report_jobs.get(report.target_id).title }}{% else %}{{ {'company':'기업 신고','user':'회원 신고'}.get(report.target_type, '삭제된 공고') }}{% endif %}</strong>
-              <small>{{ reason_labels.get(report.reason_category, report.reason_category or '사유 미입력') }} · {{ report.created_at.strftime('%Y-%m-%d') if report.created_at else '-' }}</small>
+              <strong>{{ report.title }}</strong>
+              <small>{{ report.kind_label }}{% if report.context %} · {{ report.context }}{% endif %} · {{ report.reason }} · {{ report.created_at.strftime('%Y-%m-%d') if report.created_at else '-' }}</small>
             </span>
-            <span class="status-badge {{ 'status-blocked' if report.status == 'reviewed' else 'status-rejected' if report.status == 'rejected' else 'status-pending' if report.status == 'pending' else 'status-' ~ report.status }}">{{ report_status_labels.get(report.status, report.status) }}</span>
+            <span class="status-badge {{ report.status_class }}">{{ report.status_label }}</span>
           </a>
         </li>
         {% endfor %}

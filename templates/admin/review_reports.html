@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}리뷰 신고 관리 - 1ITDA{% endblock %}
+
+{% block content %}
+<section class="admin-page">
+  <div class="admin-page-header">
+    <div>
+      <p class="admin-eyebrow">REVIEW REPORTS</p>
+      <h1>리뷰 신고 관리</h1>
+      <p>기업 리뷰 신고를 확인하고 리뷰 숨김 또는 기각을 처리합니다.</p>
+    </div>
+    <a class="btn btn-outline" href="{{ url_for('admin.reports') }}">신고 관리</a>
+  </div>
+
+  <nav class="admin-quick-nav">
+    <a href="{{ url_for('admin.job_reports', status='pending') }}">공고 신고 관리</a>
+    <a href="{{ url_for('admin.dashboard') }}">대시보드</a>
+  </nav>
+
+  <form class="admin-filter" method="get" action="{{ url_for('admin.review_reports') }}">
+    <label for="status">상태</label>
+    <select id="status" name="status" onchange="this.form.submit()">
+      {% for value, label in status_labels.items() %}
+      <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </form>
+
+  <div class="admin-section-heading">
+    <h2>리뷰 신고</h2>
+    <span>{{ review_reports|length }}건</span>
+  </div>
+  {% if review_reports %}
+  <div class="admin-table-wrap">
+    <table class="admin-table review-report-table">
+      <thead>
+        <tr>
+          <th>리뷰·기업</th>
+          <th>작성자·신고자</th>
+          <th>신고 사유</th>
+          <th>신고일</th>
+          <th>상태</th>
+          <th>관리</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for report in review_reports %}
+        <tr>
+          <td>
+            <strong>{{ report.review.title }}</strong>
+            <small>{{ report.review.company.company_name }}</small>
+          </td>
+          <td>
+            <span>작성자: {{ report.review.author.name or report.review.author.email }}</span>
+            <small>신고자: {{ report.reporter.name or report.reporter.email }}</small>
+          </td>
+          <td>
+            <span class="report-reason-tag">{{ review_reason_labels.get(report.reason, report.reason) }}</span>
+            {% if report.description %}<p class="report-reason-detail">{{ report.description }}</p>{% endif %}
+          </td>
+          <td>{{ report.created_at.strftime('%Y-%m-%d') }}</td>
+          <td>
+            <span class="status-badge status-{{ report.status }}">{{ review_report_status_labels.get(report.status, report.status) }}</span>
+            {% if report.handled_at %}<small>{{ report.handled_at.strftime('%Y-%m-%d') }} 처리</small>{% endif %}
+          </td>
+          <td class="admin-actions">
+            <a href="{{ url_for('reviews.review_detail', review_id=report.review_id) }}" target="_blank" rel="noopener">리뷰 보기</a>
+            {% if report.status == 'pending' %}
+            <form method="post" action="{{ url_for('admin.hide_reported_review_from_review_reports', report_id=report.report_id, status=status_filter) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="admin-danger-action" type="submit" onclick="return confirm('이 신고를 처리하고 리뷰를 숨기시겠습니까?')">리뷰 숨김</button>
+            </form>
+            <form method="post" action="{{ url_for('admin.dismiss_review_report_from_review_reports', report_id=report.report_id, status=status_filter) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" onclick="return confirm('이 리뷰 신고를 기각하시겠습니까?')">기각</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="admin-empty"><p>조건에 해당하는 리뷰 신고가 없습니다.</p></div>
+  {% endif %}
+</section>
+{% endblock %}

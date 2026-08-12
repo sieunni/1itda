@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}공고 신고 관리 - 1ITDA{% endblock %}
+
+{% block content %}
+<section class="admin-page">
+  <div class="admin-page-header">
+    <div>
+      <p class="admin-eyebrow">JOB REPORTS</p>
+      <h1>공고 신고 관리</h1>
+      <p>채용공고 신고를 확인하고 공고 차단, 반려, 기각을 처리합니다.</p>
+    </div>
+    <a class="btn btn-outline" href="{{ url_for('admin.reports') }}">신고 관리</a>
+  </div>
+
+  <nav class="admin-quick-nav">
+    <a href="{{ url_for('admin.review_reports', status='pending') }}">리뷰 신고 관리</a>
+    <a href="{{ url_for('admin.dashboard') }}">대시보드</a>
+  </nav>
+
+  <form class="admin-filter" method="get" action="{{ url_for('admin.job_reports') }}">
+    <label for="status">상태</label>
+    <select id="status" name="status" onchange="this.form.submit()">
+      {% for value, label in status_labels.items() %}
+      <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </form>
+
+  <div class="admin-section-heading">
+    <h2>공고 신고</h2>
+    <span>{{ reports|length }}건</span>
+  </div>
+  {% if reports %}
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>대상 공고</th>
+          <th>신고 사유</th>
+          <th>신고자</th>
+          <th>신고일</th>
+          <th>상태</th>
+          <th>관리</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for report in reports %}
+        {% set target = job_targets.get(report.target_id) %}
+        <tr>
+          <td class="report-target-cell">
+            <span class="report-target-tag">공고</span>
+            {% if target %}
+            <a class="report-target-link" href="{{ url_for('jobs.job_detail', job_id=target.job_id) }}" target="_blank" rel="noopener">{{ target.title }}</a>
+            {% else %}
+            <span class="report-target-deleted">삭제된 공고</span>
+            {% endif %}
+          </td>
+          <td class="report-reason-cell">
+            <span class="report-reason-tag">{{ reason_labels.get(report.reason_category, report.reason_category or '미입력') }}</span>
+            {% if report.reason %}<p class="report-reason-detail">{{ report.reason }}</p>{% endif %}
+          </td>
+          <td>{{ reporters.get(report.reporter_id).email if reporters.get(report.reporter_id) else '-' }}</td>
+          <td>{{ report.created_at.strftime('%Y-%m-%d') if report.created_at else '-' }}</td>
+          <td>
+            <span class="status-badge {{ 'status-blocked' if report.status == 'reviewed' else 'status-rejected' if report.status == 'rejected' else 'status-pending' if report.status == 'pending' else 'status-' ~ report.status }}">{{ report_status_labels.get(report.status, report.status) }}</span>
+          </td>
+          <td class="admin-actions">
+            {% if report.status == 'pending' %}
+            <form method="post" action="{{ url_for('admin.resolve_job_report', report_id=report.report_id, status=status_filter) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="decision" value="reviewed">
+              <button class="admin-danger-action" type="submit" onclick="return confirm('이 신고를 차단 완료로 처리하고 공고를 차단하시겠습니까?')">공고 차단</button>
+            </form>
+            <form method="post" action="{{ url_for('admin.resolve_job_report', report_id=report.report_id, status=status_filter) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="decision" value="rejected">
+              <button type="submit" onclick="return confirm('이 신고를 반려하시겠습니까?')">반려</button>
+            </form>
+            <form method="post" action="{{ url_for('admin.resolve_job_report', report_id=report.report_id, status=status_filter) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="decision" value="dismissed">
+              <button type="submit" onclick="return confirm('이 신고를 기각하시겠습니까?')">기각</button>
+            </form>
+            {% elif report.status == 'rejected' %}
+            <form method="post" action="{{ url_for('admin.resolve_job_report', report_id=report.report_id, status=status_filter) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="decision" value="reviewed">
+              <button class="admin-danger-action" type="submit" onclick="return confirm('반려된 신고를 차단 완료로 처리하고 공고를 차단하시겠습니까?')">공고 차단</button>
+            </form>
+            <form method="post" action="{{ url_for('admin.resolve_job_report', report_id=report.report_id, status=status_filter) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="decision" value="dismissed">
+              <button type="submit" onclick="return confirm('반려된 신고를 기각하시겠습니까?')">기각</button>
+            </form>
+            {% else %}
+            <span>-</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="admin-empty"><p>조건에 해당하는 공고 신고가 없습니다.</p></div>
+  {% endif %}
+</section>
+{% endblock %}
