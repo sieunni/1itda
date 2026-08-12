@@ -44,7 +44,7 @@
 
     <div class="jobs-search__field jobs-search__field--sort">
       <label for="sort">정렬</label>
-      <select id="sort" name="sort" onchange="this.form.submit()">
+      <select id="sort" name="sort" data-auto-submit>
         {% for value, label in sort_options %}
           <option value="{{ value }}" {% if filters.sort == value %}selected{% endif %}>{{ label }}</option>
         {% endfor %}

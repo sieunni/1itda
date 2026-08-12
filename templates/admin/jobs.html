@@ -15,7 +15,7 @@
 
   <form class="admin-filter" method="get">
     <label for="status">상태</label>
-    <select id="status" name="status" onchange="this.form.submit()">
+    <select id="status" name="status" data-auto-submit>
       <option value="" {% if status_filter == "" %}selected{% endif %}>전체</option>
       {% for value, label in status_labels.items() %}
       <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
@@ -43,12 +43,12 @@
               <button type="submit">승인</button>
             </form>
             {% endif %}
-            {% if job.status != "blocked" %}
+            {% if job.status in ("pending", "approved") %}
             <form method="post" action="{{ url_for('admin.block_job', job_id=job.job_id, status=status_filter) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <button type="submit" onclick="return confirm('이 공고를 차단하시겠습니까?')">차단</button>
+              <button type="submit" data-confirm="이 공고를 차단하시겠습니까?">차단</button>
             </form>
-            {% else %}
+            {% elif job.status == "blocked" %}
             <form method="post" action="{{ url_for('admin.unblock_job', job_id=job.job_id, status=status_filter) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit">차단 해제</button>

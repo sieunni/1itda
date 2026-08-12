@@ -60,7 +60,7 @@
         <a class="btn btn-primary" href="{{ url_for('chat.chat_thread', application_id=application.application_id) }}">메시지</a>
         {% endif %}
         {% if application.status == 'submitted' %}
-        <form method="post" action="{{ url_for('applications.cancel_application', application_id=application.application_id) }}" onsubmit="return confirm('정말 지원을 취소하시겠습니까? 취소 후 동일 공고 재지원은 불가합니다.');">
+        <form method="post" action="{{ url_for('applications.cancel_application', application_id=application.application_id) }}" data-confirm="정말 지원을 취소하시겠습니까? 취소 후 동일 공고 재지원은 불가합니다.">
           {% if csrf_token is defined %}
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           {% endif %}

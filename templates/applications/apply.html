@@ -76,7 +76,7 @@
   </div>
 </section>
 
-<script>
+<script nonce="{{ csp_nonce }}">
   const fileInput = document.getElementById('resume_file');
   const fileName = document.querySelector('.selected-file');
   fileInput.addEventListener('change', () => {

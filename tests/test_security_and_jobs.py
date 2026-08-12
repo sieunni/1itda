@@ -1,10 +1,12 @@
 import atexit
 import io
 import os
+import re
 import shutil
 import tempfile
 import unittest
 import zipfile
+import time
 from datetime import date, timedelta
 from unittest.mock import patch
 
@@ -20,7 +22,6 @@ from extensions import db
 from job_lifecycle import close_expired_jobs
 from models import Application, ChatMessage, Company, Job, LoginThrottle, Resume, User
 from session_security import auth_fingerprint
-from routes.auth import _send_reset_email
 from scripts import seed_test_data
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -84,8 +85,10 @@ class SecurityAndJobFeatureTest(unittest.TestCase):
             fingerprint = auth_fingerprint(user)
         with client.session_transaction() as session:
             session["user_id"] = user_id
-            session["role"] = role
             session["auth_fingerprint"] = fingerprint
+            session["issued_at"] = int(time.time())
+            session["last_activity"] = int(time.time())
+            session.permanent = True
 
     def block_user(self, user_id):
         with app.app_context():
@@ -323,28 +326,98 @@ class SecurityAndJobFeatureTest(unittest.TestCase):
             user = db.session.get(User, self.ids["user"])
             self.assertTrue(check_password_hash(user.password_hash, "new-password"))
 
-    def test_password_reset_is_single_use_and_changes_password(self):
-        stale_client = app.test_client()
-        self.set_session(self.ids["user"], "jobseeker", client=stale_client)
+    def test_password_recovery_routes_are_not_registered(self):
+        self.assertEqual(self.client.get("/forgot-password").status_code, 404)
+        self.assertEqual(self.client.get("/reset-password/token").status_code, 404)
 
-        with patch("routes.auth._send_reset_email") as send:
-            response = self.client.post("/forgot-password", data={"email": "user@example.com"})
+    def test_expired_session_is_cleared(self):
+        self.set_session(self.ids["user"], "jobseeker")
+        with self.client.session_transaction() as session:
+            session["last_activity"] = int(time.time()) - app.config["SESSION_IDLE_SECONDS"] - 1
+
+        response = self.client.get("/mypage")
         self.assertEqual(response.status_code, 302)
-        reset_url = send.call_args.args[1]
-        token = reset_url.rsplit("/", 1)[-1]
+        self.assertIn("/login", response.headers["Location"])
+        self.assert_session_cleared()
 
-        response = self.client.post(
-            f"/reset-password/{token}",
-            data={"new_password": "new-password", "new_password_confirm": "new-password"},
+    def test_email_change_requires_current_password(self):
+        self.set_session(self.ids["user"], "jobseeker")
+        denied = self.client.post(
+            "/mypage",
+            data={"name": "구직자", "email": "changed@example.com"},
+            follow_redirects=True,
         )
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(self.client.get(f"/reset-password/{token}").status_code, 302)
+        self.assertIn("현재 비밀번호를 확인".encode(), denied.data)
         with app.app_context():
-            user = db.session.get(User, self.ids["user"])
-            self.assertTrue(check_password_hash(user.password_hash, "new-password"))
-        self.assertEqual(stale_client.get("/mypage").status_code, 302)
-        with stale_client.session_transaction() as stale_session:
-            self.assertNotIn("user_id", stale_session)
+            self.assertEqual(db.session.get(User, self.ids["user"]).email, "user@example.com")
+
+        allowed = self.client.post(
+            "/mypage",
+            data={
+                "name": "구직자",
+                "email": "changed@example.com",
+                "current_password": "old-password",
+            },
+        )
+        self.assertEqual(allowed.status_code, 302)
+        with app.app_context():
+            self.assertEqual(db.session.get(User, self.ids["user"]).email, "changed@example.com")
+
+    def test_join_rejects_invalid_email_and_weak_password(self):
+        response = self.client.post(
+            "/join",
+            data={
+                "role": "jobseeker",
+                "name": "가입자",
+                "email": "invalid-email",
+                "password": "12345678",
+                "password_confirm": "12345678",
+                "privacy_agreed": "1",
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("올바른 이메일".encode(), response.data)
+        self.assertIn("12자 이상".encode(), response.data)
+
+    def test_withdraw_removes_unused_resume_but_preserves_submitted_copy(self):
+        original_upload_folder = app.config["UPLOAD_FOLDER"]
+        with tempfile.TemporaryDirectory(prefix="1itda-withdraw-") as upload_dir:
+            app.config["UPLOAD_FOLDER"] = upload_dir
+            try:
+                for filename in ("unused.pdf", "submitted.pdf"):
+                    with open(os.path.join(upload_dir, filename), "wb") as resume_file:
+                        resume_file.write(b"%PDF-1.7\n")
+                with app.app_context():
+                    unused = Resume(
+                        user_id=self.ids["user"], file_path="unused.pdf", original_filename="unused.pdf"
+                    )
+                    submitted = Resume(
+                        user_id=self.ids["user"], file_path="submitted.pdf", original_filename="submitted.pdf"
+                    )
+                    db.session.add_all([unused, submitted])
+                    db.session.flush()
+                    db.session.add(
+                        Application(
+                            user_id=self.ids["user"],
+                            job_id=self.ids["active"],
+                            resume_id=submitted.resume_id,
+                            resume_snapshot="submitted.pdf",
+                        )
+                    )
+                    db.session.commit()
+                    unused_id = unused.resume_id
+                    submitted_id = submitted.resume_id
+
+                self.set_session(self.ids["user"], "jobseeker")
+                response = self.client.post("/mypage/withdraw", data={"password": "old-password"})
+                self.assertEqual(response.status_code, 302)
+                self.assertFalse(os.path.exists(os.path.join(upload_dir, "unused.pdf")))
+                self.assertTrue(os.path.exists(os.path.join(upload_dir, "submitted.pdf")))
+                with app.app_context():
+                    self.assertIsNone(db.session.get(Resume, unused_id))
+                    self.assertTrue(db.session.get(Resume, submitted_id).is_deleted)
+            finally:
+                app.config["UPLOAD_FOLDER"] = original_upload_folder
 
     def test_app_creation_rejects_missing_secret_key(self):
         with patch.object(Config, "SECRET_KEY", None):
@@ -355,37 +428,6 @@ class SecurityAndJobFeatureTest(unittest.TestCase):
         with patch.dict(os.environ, {"APP_ENV": "production"}, clear=False):
             with self.assertRaisesRegex(RuntimeError, "only when APP_ENV=development"):
                 seed_test_data.main()
-
-    def test_password_reset_uses_configured_origin_not_request_host(self):
-        original_base_url = app.config["APP_BASE_URL"]
-        app.config["APP_BASE_URL"] = "https://accounts.example.test"
-        try:
-            with patch("routes.auth._send_reset_email") as send:
-                response = self.client.post(
-                    "/forgot-password",
-                    data={"email": "user@example.com"},
-                    headers={"Host": "attacker.example"},
-                )
-        finally:
-            app.config["APP_BASE_URL"] = original_base_url
-
-        self.assertEqual(response.status_code, 302)
-        reset_url = send.call_args.args[1]
-        self.assertTrue(reset_url.startswith("https://accounts.example.test/reset-password/"))
-        self.assertNotIn("attacker.example", reset_url)
-
-    def test_missing_mail_configuration_does_not_log_reset_token(self):
-        original_mail_host = app.config.get("MAIL_HOST")
-        app.config["MAIL_HOST"] = None
-        try:
-            with app.app_context(), self.assertLogs(app.logger, level="WARNING") as logs:
-                _send_reset_email(self.jobseeker, "https://example.test/reset/sensitive-token")
-        finally:
-            app.config["MAIL_HOST"] = original_mail_host
-
-        output = "\n".join(logs.output)
-        self.assertNotIn("sensitive-token", output)
-        self.assertNotIn(self.jobseeker.email, output)
 
     def test_password_change_invalidates_other_existing_session(self):
         other_client = app.test_client()
@@ -498,6 +540,14 @@ class SecurityAndJobFeatureTest(unittest.TestCase):
             "camera=(), microphone=(), geolocation=()",
         )
         self.assertIn("object-src 'none'", response.headers["Content-Security-Policy"])
+        self.assertNotIn("unsafe-inline", response.headers["Content-Security-Policy"])
+
+        join_response = self.client.get("/join")
+        nonce_match = re.search(
+            r"script-src 'self' 'nonce-([^']+)'", join_response.headers["Content-Security-Policy"]
+        )
+        self.assertIsNotNone(nonce_match)
+        self.assertIn(f'nonce="{nonce_match.group(1)}"', join_response.get_data(as_text=True))
 
         original_secure = app.config["SESSION_COOKIE_SECURE"]
         app.config["SESSION_COOKIE_SECURE"] = True

@@ -2,12 +2,13 @@ import os
 import uuid
 
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_from_directory, session, url_for
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import joinedload
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
 from extensions import db
+from input_validation import is_valid_email, password_policy_error, validate_display_text
 from models import Application, Job, Resume, Scrap, User
 from resume_validation import is_valid_resume_file
 from session_security import refresh_user_session
@@ -50,6 +51,9 @@ def resume_upload():
     original_name = secure_filename(uploaded_file.filename) if uploaded_file and uploaded_file.filename else ""
     if not original_name or "." not in original_name:
         flash("등록할 이력서 파일을 선택해 주세요.", "error")
+        return _resume_management_redirect()
+    if len(original_name) > 255:
+        flash("이력서 파일명은 255자 이하여야 합니다.", "error")
         return _resume_management_redirect()
 
     extension = original_name.rsplit(".", 1)[1].lower()
@@ -185,21 +189,34 @@ def mypage():
         name = (request.form.get("name") or "").strip()
         email = (request.form.get("email") or "").strip().lower()
 
-        if not name or not email:
-            flash("이름과 이메일을 모두 입력해 주세요.", "error")
+        name_error = validate_display_text(name, 80, "이름")
+        if name_error:
+            flash(name_error, "error")
+        elif not is_valid_email(email):
+            flash("올바른 이메일 주소를 입력해 주세요.", "error")
         elif User.query.filter(User.email == email, User.user_id != user.user_id).first():
             flash("이미 사용 중인 이메일입니다.", "error")
+        elif email != user.email and not check_password_hash(
+            user.password_hash, request.form.get("current_password") or ""
+        ):
+            flash("이메일을 변경하려면 현재 비밀번호를 확인해 주세요.", "error")
         else:
             user.name = name
             user.email = email
             if user.role == "company" and user.company:
                 company_name = (request.form.get("company_name") or "").strip()
-                if not company_name:
-                    flash("회사명을 입력해 주세요.", "error")
+                company_name_error = validate_display_text(company_name, 120, "회사명")
+                if company_name_error:
+                    flash(company_name_error, "error")
                     return redirect(url_for("profile.mypage"))
                 user.company.company_name = company_name
-            db.session.commit()
-            flash("회원 정보가 수정되었습니다.", "success")
+            try:
+                db.session.commit()
+            except IntegrityError:
+                db.session.rollback()
+                flash("이미 사용 중인 이메일입니다.", "error")
+            else:
+                flash("회원 정보가 수정되었습니다.", "success")
         return redirect(url_for("profile.mypage"))
 
     if user.role == "company":
@@ -288,8 +305,8 @@ def change_password():
 
     if not check_password_hash(user.password_hash, current_password):
         flash("현재 비밀번호가 올바르지 않습니다.", "error")
-    elif len(new_password) < 8:
-        flash("새 비밀번호는 8자 이상이어야 합니다.", "error")
+    elif password_policy_error(new_password, "새 비밀번호"):
+        flash(password_policy_error(new_password, "새 비밀번호"), "error")
     elif new_password != new_password_confirm:
         flash("새 비밀번호가 일치하지 않습니다.", "error")
     elif check_password_hash(user.password_hash, new_password):
@@ -319,11 +336,42 @@ def withdraw():
         flash("비밀번호가 올바르지 않습니다.", "error")
         return render_template("profile/withdraw.html"), 400
 
+    removable_files = []
+    if user.role == "jobseeker":
+        resumes = Resume.query.filter_by(user_id=user.user_id).all()
+        used_resume_ids = {
+            resume_id
+            for (resume_id,) in db.session.query(Application.resume_id)
+            .filter(
+                Application.user_id == user.user_id,
+                Application.resume_id.is_not(None),
+            )
+            .all()
+        }
+        for resume in resumes:
+            if resume.resume_id in used_resume_ids:
+                resume.is_deleted = True
+                continue
+            stored_filename = os.path.basename(resume.file_path) if resume.file_path else None
+            if stored_filename and stored_filename == resume.file_path:
+                removable_files.append(stored_filename)
+            db.session.delete(resume)
+
     user.email = f"withdrawn-{user.user_id}@1itda.local"
     user.name = None
     user.password_hash = generate_password_hash(uuid.uuid4().hex)
     user.is_active = False
     db.session.commit()
+
+    for stored_filename in removable_files:
+        file_path = os.path.join(current_app.config["UPLOAD_FOLDER"], stored_filename)
+        try:
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+        except OSError:
+            current_app.logger.exception(
+                "Failed to remove withdrawn user's unused resume: %s", stored_filename
+            )
 
     session.clear()
     flash("회원 탈퇴가 완료되었습니다. 그동안 이용해 주셔서 감사합니다.", "success")

@@ -70,7 +70,7 @@
           name="email"
           value="{{ request.form.get('email', '') }}"
           placeholder="example@email.com"
-          maxlength="255"
+          maxlength="120"
           autocomplete="email"
           required
         >
@@ -83,8 +83,8 @@
             type="password"
             id="password"
             name="password"
-            placeholder="영문·숫자 포함 8자 이상"
-            minlength="8"
+            placeholder="12자 이상"
+            minlength="12"
             maxlength="72"
             autocomplete="new-password"
             required
@@ -98,7 +98,7 @@
             id="password_confirm"
             name="password_confirm"
             placeholder="비밀번호 다시 입력"
-            minlength="8"
+            minlength="12"
             maxlength="72"
             autocomplete="new-password"
             required
@@ -121,7 +121,7 @@
   </div>
 </section>
 
-<script>
+<script nonce="{{ csp_nonce }}">
   const roleInputs = document.querySelectorAll('input[name="role"]');
   const companyGroup = document.getElementById("company-name-group");
   const companyInput = document.getElementById("company_name");

@@ -15,7 +15,7 @@
 
   <form class="admin-filter" method="get">
     <label for="role">역할</label>
-    <select id="role" name="role" onchange="this.form.submit()">
+    <select id="role" name="role" data-auto-submit>
       <option value="" {% if role_filter == "" %}selected{% endif %}>전체</option>
       <option value="jobseeker" {% if role_filter == "jobseeker" %}selected{% endif %}>구직자</option>
       <option value="company" {% if role_filter == "company" %}selected{% endif %}>기업</option>
@@ -37,7 +37,7 @@
           <td class="admin-actions">
             <form method="post" action="{{ url_for('admin.toggle_user', user_id=member.user_id, role=role_filter) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <button type="submit" onclick="return confirm('{{ '차단을 해제' if not member.is_active else '차단' }}하시겠습니까?')">
+              <button type="submit" data-confirm="{{ '차단을 해제' if not member.is_active else '차단' }}하시겠습니까?">
                 {{ "차단 해제" if not member.is_active else "차단" }}
               </button>
             </form>

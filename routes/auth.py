@@ -1,16 +1,14 @@
 import hashlib
-import secrets
-import smtplib
 from datetime import datetime, timedelta
-from email.message import EmailMessage
 
-from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
-from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
+from sqlalchemy.exc import IntegrityError
 
 from extensions import db
+from input_validation import is_valid_email, password_policy_error, validate_display_text
 from models import Company, LoginThrottle, User
-from session_security import auth_fingerprint, establish_user_session
+from session_security import establish_user_session
 
 auth_bp = Blueprint("auth", __name__)
 LOGIN_WINDOW = timedelta(minutes=15)
@@ -19,7 +17,7 @@ ADMIN_LOCK_DURATION = timedelta(minutes=30)
 USER_MAX_ATTEMPTS = 5
 ADMIN_MAX_ATTEMPTS = 3
 GENERIC_LOGIN_ERROR = "이메일 또는 비밀번호가 올바르지 않거나 로그인이 잠시 제한되었습니다."
-GENERIC_RESET_MESSAGE = "가입된 계정인 경우 비밀번호 재설정 메일이 발송됩니다."
+DUMMY_PASSWORD_HASH = generate_password_hash("dummy-password-never-used")
 
 
 def _throttle_key(email):
@@ -53,7 +51,14 @@ def _record_login_failure(email, is_admin, now):
     max_attempts = ADMIN_MAX_ATTEMPTS if is_admin else USER_MAX_ATTEMPTS
     if throttle.failed_attempts >= max_attempts:
         throttle.locked_until = now + (ADMIN_LOCK_DURATION if is_admin else USER_LOCK_DURATION)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        throttle = _get_throttle(email)
+        if throttle is not None:
+            throttle.failed_attempts += 1
+            db.session.commit()
 
 
 def _clear_login_failures(email):
@@ -61,35 +66,6 @@ def _clear_login_failures(email):
     if throttle:
         db.session.delete(throttle)
         db.session.commit()
-
-
-def _reset_serializer():
-    return URLSafeTimedSerializer(current_app.config["SECRET_KEY"], salt="password-reset")
-
-
-def _send_reset_email(user, reset_url):
-    host = current_app.config.get("MAIL_HOST")
-    if not host:
-        current_app.logger.warning(
-            "Password reset email was not sent because MAIL_HOST is not configured."
-        )
-        return
-
-    message = EmailMessage()
-    message["Subject"] = "[1ITDA] 비밀번호 재설정"
-    message["From"] = current_app.config["MAIL_FROM"]
-    message["To"] = user.email
-    message.set_content(
-        "아래 링크에서 30분 이내에 비밀번호를 재설정해 주세요.\n\n"
-        f"{reset_url}\n\n요청하지 않았다면 이 메일을 무시해 주세요."
-    )
-    with smtplib.SMTP(host, current_app.config["MAIL_PORT"], timeout=10) as smtp:
-        if current_app.config.get("MAIL_USE_TLS"):
-            smtp.starttls()
-        username = current_app.config.get("MAIL_USERNAME")
-        if username:
-            smtp.login(username, current_app.config.get("MAIL_PASSWORD") or "")
-        smtp.send_message(message)
 
 
 @auth_bp.route("/join", methods=["GET", "POST"])
@@ -108,14 +84,18 @@ def join():
     errors = []
     if role not in ("jobseeker", "company"):
         errors.append("회원 유형을 선택해 주세요.")
-    if not name:
-        errors.append("이름을 입력해 주세요.")
-    if role == "company" and not company_name:
-        errors.append("회사명을 입력해 주세요.")
-    if not email:
-        errors.append("이메일을 입력해 주세요.")
-    if len(password) < 8:
-        errors.append("비밀번호는 8자 이상이어야 합니다.")
+    name_error = validate_display_text(name, 80, "이름")
+    if name_error:
+        errors.append(name_error)
+    if role == "company":
+        company_name_error = validate_display_text(company_name, 120, "회사명")
+        if company_name_error:
+            errors.append(company_name_error)
+    if not is_valid_email(email):
+        errors.append("올바른 이메일 주소를 입력해 주세요.")
+    password_error = password_policy_error(password)
+    if password_error:
+        errors.append(password_error)
     if password != password_confirm:
         errors.append("비밀번호가 일치하지 않습니다.")
     if not privacy_agreed:
@@ -128,19 +108,24 @@ def join():
             flash(message, "error")
         return render_template("auth/join.html"), 400
 
-    user = User(
-        email=email,
-        password_hash=generate_password_hash(password),
-        role=role,
-        name=name,
-    )
-    db.session.add(user)
-    db.session.flush()
+    try:
+        user = User(
+            email=email,
+            password_hash=generate_password_hash(password),
+            role=role,
+            name=name,
+        )
+        db.session.add(user)
+        db.session.flush()
 
-    if role == "company":
-        db.session.add(Company(user_id=user.user_id, company_name=company_name))
+        if role == "company":
+            db.session.add(Company(user_id=user.user_id, company_name=company_name))
 
-    db.session.commit()
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        flash("가입할 수 없는 이메일입니다.", "error")
+        return render_template("auth/join.html"), 400
 
     establish_user_session(user)
     flash("회원가입이 완료되었습니다.", "success")
@@ -161,83 +146,20 @@ def login():
         flash(GENERIC_LOGIN_ERROR, "error")
         return render_template("auth/login.html"), 401
 
-    user = User.query.filter_by(email=email).first()
+    user = User.query.filter_by(email=email).first() if len(email) <= 120 else None
 
-    if not user or not check_password_hash(user.password_hash, password):
+    password_matches = check_password_hash(
+        user.password_hash if user else DUMMY_PASSWORD_HASH,
+        password[:73],
+    )
+    if not user or not password_matches or not user.is_active:
         _record_login_failure(email, bool(user and user.role == "admin"), now)
         flash(GENERIC_LOGIN_ERROR, "error")
         return render_template("auth/login.html"), 401
 
-    if not user.is_active:
-        flash("이용이 제한된 계정입니다.", "error")
-        return render_template("auth/login.html"), 403
-
     _clear_login_failures(email)
     establish_user_session(user)
     return redirect(url_for("index"))
-
-
-@auth_bp.route("/forgot-password", methods=["GET", "POST"])
-def forgot_password():
-    if request.method == "POST":
-        email = (request.form.get("email") or "").strip().lower()
-        user = User.query.filter_by(email=email, is_active=True).first() if email else None
-        if user:
-            token = _reset_serializer().dumps(
-                {"user_id": user.user_id, "fingerprint": auth_fingerprint(user)}
-            )
-            reset_path = url_for("auth.reset_password", token=token)
-            reset_url = f"{current_app.config['APP_BASE_URL']}{reset_path}"
-            try:
-                _send_reset_email(user, reset_url)
-            except (OSError, smtplib.SMTPException):
-                current_app.logger.exception("Failed to send password reset email")
-
-        flash(GENERIC_RESET_MESSAGE, "success")
-        return redirect(url_for("auth.login"))
-
-    return render_template("auth/forgot_password.html")
-
-
-@auth_bp.route("/reset-password/<token>", methods=["GET", "POST"])
-def reset_password(token):
-    try:
-        payload = _reset_serializer().loads(
-            token,
-            max_age=current_app.config["PASSWORD_RESET_MAX_AGE"],
-        )
-    except (BadSignature, SignatureExpired):
-        flash("비밀번호 재설정 링크가 만료되었거나 올바르지 않습니다.", "error")
-        return redirect(url_for("auth.forgot_password"))
-
-    user = db.session.get(User, payload.get("user_id"))
-    if (
-        not user
-        or not user.is_active
-        or not secrets.compare_digest(
-            auth_fingerprint(user), payload.get("fingerprint") or ""
-        )
-    ):
-        flash("비밀번호 재설정 링크가 만료되었거나 이미 사용되었습니다.", "error")
-        return redirect(url_for("auth.forgot_password"))
-
-    if request.method == "POST":
-        new_password = request.form.get("new_password") or ""
-        new_password_confirm = request.form.get("new_password_confirm") or ""
-        if len(new_password) < 8:
-            flash("새 비밀번호는 8자 이상이어야 합니다.", "error")
-        elif new_password != new_password_confirm:
-            flash("새 비밀번호가 일치하지 않습니다.", "error")
-        elif check_password_hash(user.password_hash, new_password):
-            flash("기존 비밀번호와 다른 비밀번호를 입력해 주세요.", "error")
-        else:
-            user.password_hash = generate_password_hash(new_password)
-            db.session.commit()
-            session.clear()
-            flash("비밀번호가 변경되었습니다. 새 비밀번호로 로그인해 주세요.", "success")
-            return redirect(url_for("auth.login"))
-
-    return render_template("auth/reset_password.html", token=token)
 
 
 @auth_bp.post("/logout")

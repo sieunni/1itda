@@ -2,6 +2,7 @@ import atexit
 import os
 import shutil
 import tempfile
+import time
 import unittest
 
 
@@ -51,8 +52,10 @@ class ReviewFeatureTest(unittest.TestCase):
             fingerprint = auth_fingerprint(user)
         with self.client.session_transaction() as session:
             session["user_id"] = user_id
-            session["role"] = role
             session["auth_fingerprint"] = fingerprint
+            session["issued_at"] = int(time.time())
+            session["last_activity"] = int(time.time())
+            session.permanent = True
 
     def create_review(self):
         with app.app_context():

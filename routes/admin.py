@@ -1,5 +1,5 @@
 from functools import wraps
-from datetime import datetime
+from datetime import date, datetime
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, session, url_for
 from sqlalchemy.exc import SQLAlchemyError
@@ -220,6 +220,12 @@ def approve_job(admin, job_id):
     job = db.session.get(Job, job_id)
     if job is None:
         abort(404)
+    if job.status != "pending":
+        flash("승인 대기 공고만 승인할 수 있습니다.", "error")
+        return redirect(url_for("admin.jobs", status=request.args.get("status", "")))
+    if job.deadline and job.deadline < date.today():
+        flash("마감일이 지난 공고는 승인할 수 없습니다.", "error")
+        return redirect(url_for("admin.jobs", status=request.args.get("status", "")))
     job.status = "approved"
     log_action(admin, "approve", "job", job.job_id)
     _commit("공고를 승인했습니다.", "처리하지 못했습니다. 잠시 후 다시 시도해 주세요.")
@@ -232,6 +238,9 @@ def block_job(admin, job_id):
     job = db.session.get(Job, job_id)
     if job is None:
         abort(404)
+    if job.status not in {"pending", "approved"}:
+        flash("승인 대기 또는 공개 중인 공고만 차단할 수 있습니다.", "error")
+        return redirect(url_for("admin.jobs", status=request.args.get("status", "")))
     job.status = "blocked"
     log_action(admin, "block", "job", job.job_id)
     _commit("공고를 차단했습니다.", "처리하지 못했습니다. 잠시 후 다시 시도해 주세요.")
@@ -244,6 +253,9 @@ def unblock_job(admin, job_id):
     job = db.session.get(Job, job_id)
     if job is None:
         abort(404)
+    if job.status != "blocked":
+        flash("차단된 공고만 차단 해제할 수 있습니다.", "error")
+        return redirect(url_for("admin.jobs", status=request.args.get("status", "")))
     job.status = "pending"
     log_action(admin, "unblock", "job", job.job_id)
     _commit("차단을 해제했습니다. 재승인이 필요합니다.", "처리하지 못했습니다. 잠시 후 다시 시도해 주세요.")

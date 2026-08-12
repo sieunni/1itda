@@ -1,8 +1,10 @@
 import click
 import hmac
-from flask import Flask, flash, jsonify, redirect, render_template, request, session, url_for
+import secrets
+import threading
+import time
+from flask import Flask, flash, g, jsonify, redirect, render_template, request, session, url_for
 from sqlalchemy import inspect, text
-from urllib.parse import urlsplit
 
 from config import Config
 from extensions import csrf, db
@@ -16,7 +18,7 @@ from routes.company import company_bp
 from routes.jobs import jobs_bp
 from routes.profile import profile_bp
 from routes.reviews import reviews_bp
-from session_security import auth_fingerprint
+from session_security import auth_fingerprint, is_session_fresh
 
 
 def ensure_schema_compatibility():
@@ -56,6 +58,26 @@ def ensure_schema_compatibility():
         db.session.execute(text("ALTER TABLE jobs ADD COLUMN view_count INTEGER NOT NULL DEFAULT 0"))
         db.session.commit()
 
+    report_indexes = {index["name"] for index in inspector.get_indexes("reports")}
+    if "uq_reporter_target" not in report_indexes:
+        duplicate = db.session.execute(
+            text(
+                "SELECT 1 FROM reports "
+                "GROUP BY reporter_id, target_type, target_id HAVING COUNT(*) > 1 LIMIT 1"
+            )
+        ).first()
+        if duplicate:
+            raise RuntimeError(
+                "Duplicate report rows must be resolved before applying the security index."
+            )
+        db.session.execute(
+            text(
+                "CREATE UNIQUE INDEX uq_reporter_target "
+                "ON reports (reporter_id, target_type, target_id)"
+            )
+        )
+        db.session.commit()
+
 
 def create_app():
     app = Flask(__name__)
@@ -66,13 +88,15 @@ def create_app():
         raise RuntimeError(
             "SECRET_KEY must be set to an environment-specific value of at least 32 characters."
         )
-
-    base_url = urlsplit(app.config["APP_BASE_URL"])
-    if base_url.scheme not in {"http", "https"} or not base_url.netloc:
-        raise RuntimeError("APP_BASE_URL must be an absolute http:// or https:// URL.")
+    if app.config["APP_ENV"] == "production" and app.config["DEBUG"]:
+        raise RuntimeError("FLASK_DEBUG must be disabled in production.")
+    if app.config["APP_ENV"] == "production" and not app.config["SESSION_COOKIE_SECURE"]:
+        raise RuntimeError("SESSION_COOKIE_SECURE must be enabled in production.")
 
     db.init_app(app)
     csrf.init_app(app)
+    lifecycle_lock = threading.Lock()
+    last_lifecycle_sync = 0.0
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(profile_bp)
@@ -82,6 +106,10 @@ def create_app():
     app.register_blueprint(admin_bp)
     app.register_blueprint(chat_bp)
     app.register_blueprint(reviews_bp)
+
+    @app.before_request
+    def prepare_content_security_policy_nonce():
+        g.csp_nonce = secrets.token_urlsafe(18)
 
     @app.before_request
     def reject_inactive_session():
@@ -99,6 +127,7 @@ def create_app():
             and user.is_active
             and fingerprint
             and hmac.compare_digest(fingerprint, auth_fingerprint(user))
+            and is_session_fresh(user)
         ):
             return None
 
@@ -118,20 +147,31 @@ def create_app():
 
     @app.before_request
     def synchronize_expired_jobs():
-        close_expired_jobs()
+        nonlocal last_lifecycle_sync
+        now = time.monotonic()
+        if now - last_lifecycle_sync < 60:
+            return None
+        with lifecycle_lock:
+            if now - last_lifecycle_sync < 60:
+                return None
+            close_expired_jobs()
+            last_lifecycle_sync = now
+        return None
 
     @app.after_request
     def add_security_headers(response):
+        csp_nonce = getattr(g, "csp_nonce", secrets.token_urlsafe(18))
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+        response.headers.setdefault("X-Permitted-Cross-Domain-Policies", "none")
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
         response.headers.setdefault(
             "Permissions-Policy", "camera=(), microphone=(), geolocation=()"
         )
         response.headers.setdefault(
             "Content-Security-Policy",
-            "default-src 'self'; script-src 'self' 'unsafe-inline'; "
-            "style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
+            f"default-src 'self'; script-src 'self' 'nonce-{csp_nonce}'; "
+            "style-src 'self'; img-src 'self' data:; "
             "object-src 'none'; base-uri 'self'; frame-ancestors 'self'; "
             "form-action 'self'",
         )
@@ -139,6 +179,12 @@ def create_app():
             response.headers.setdefault(
                 "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
             )
+        if request.endpoint and (
+            request.endpoint.startswith(("profile.", "applications.", "company.", "admin.", "chat."))
+            or session.get("user_id")
+        ):
+            response.headers["Cache-Control"] = "no-store, private"
+            response.headers["Pragma"] = "no-cache"
         return response
 
     @app.cli.command("close-expired-jobs")
@@ -150,7 +196,10 @@ def create_app():
     @app.context_processor
     def inject_current_user():
         user_id = session.get("user_id")
-        return {"current_user": User.query.get(user_id) if user_id else None}
+        return {
+            "current_user": db.session.get(User, user_id) if user_id else None,
+            "csp_nonce": g.csp_nonce,
+        }
 
     @app.route("/")
     def index():

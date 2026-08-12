@@ -192,6 +192,11 @@ REPORT_REASON_LABELS = {
 
 class Report(db.Model):
     __tablename__ = "reports"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "reporter_id", "target_type", "target_id", name="uq_reporter_target"
+        ),
+    )
 
     report_id = db.Column(db.Integer, primary_key=True)
     reporter_id = db.Column(db.Integer, db.ForeignKey("users.user_id"), nullable=False)

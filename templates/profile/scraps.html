@@ -39,7 +39,7 @@
         {% if scrap.job %}
         <form method="post" action="{{ url_for('jobs.scrap_job', job_id=scrap.job_id) }}">
           {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
-          <button type="submit" class="btn btn-outline" onclick="return confirm('스크랩을 삭제하시겠습니까?')">삭제</button>
+          <button type="submit" class="btn btn-outline" data-confirm="스크랩을 삭제하시겠습니까?">삭제</button>
         </form>
         {% endif %}
       </div>

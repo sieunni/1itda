@@ -73,6 +73,9 @@ def apply(job_id):
         if not original_filename:
             flash("파일명을 확인해 주세요.", "error")
             return render_template("applications/apply.html", job=job, user=user, resumes=resumes), 400
+        if len(original_filename) > 255:
+            flash("이력서 파일명은 255자 이하여야 합니다.", "error")
+            return render_template("applications/apply.html", job=job, user=user, resumes=resumes), 400
 
         extension = original_filename.rsplit(".", 1)[1].lower()
         if not is_valid_resume_file(uploaded_file, extension):

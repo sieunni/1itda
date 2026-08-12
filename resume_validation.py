@@ -2,18 +2,19 @@ import zipfile
 
 
 ALLOWED_RESUME_MIMETYPES = {
-    "pdf": {"application/pdf", "application/octet-stream"},
-    "doc": {"application/msword", "application/octet-stream"},
+    "pdf": {"application/pdf"},
+    "doc": {"application/msword"},
     "docx": {
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "application/zip",
-        "application/octet-stream",
     },
 }
 
 OLE_COMPOUND_FILE_SIGNATURE = bytes.fromhex("D0CF11E0A1B11AE1")
 MAX_DOCX_ENTRIES = 10_000
 MAX_DOCX_UNCOMPRESSED_SIZE = 20 * 1024 * 1024
+MAX_DOCX_ENTRY_SIZE = 10 * 1024 * 1024
+MAX_DOCX_COMPRESSION_RATIO = 100
 
 
 def _is_docx(stream):
@@ -24,10 +25,17 @@ def _is_docx(stream):
                 return False
             if sum(entry.file_size for entry in entries) > MAX_DOCX_UNCOMPRESSED_SIZE:
                 return False
+            for entry in entries:
+                if entry.flag_bits & 0x1 or entry.file_size > MAX_DOCX_ENTRY_SIZE:
+                    return False
+                if (
+                    entry.file_size > 1 * 1024 * 1024
+                    and entry.compress_size > 0
+                    and entry.file_size / entry.compress_size > MAX_DOCX_COMPRESSION_RATIO
+                ):
+                    return False
             names = {entry.filename for entry in entries}
-            return "[Content_Types].xml" in names and any(
-                name.startswith("word/") for name in names
-            )
+            return "[Content_Types].xml" in names and "word/document.xml" in names
     except (OSError, zipfile.BadZipFile):
         return False
     finally:

@@ -3,6 +3,7 @@ from math import ceil
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, session, url_for
 from sqlalchemy import case, or_, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 
 from choices import INDUSTRY_CHOICES, REGION_CHOICES
@@ -300,8 +301,13 @@ def scrap_job(job_id):
     existing_scrap = Scrap.query.filter_by(user_id=user.user_id, job_id=job.job_id).first()
     if existing_scrap is None:
         db.session.add(Scrap(user_id=user.user_id, job_id=job.job_id))
-        db.session.commit()
-        flash("공고를 스크랩했습니다. 마이페이지에서 확인할 수 있습니다.", "success")
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            flash("이미 스크랩한 공고입니다.", "info")
+        else:
+            flash("공고를 스크랩했습니다. 마이페이지에서 확인할 수 있습니다.", "success")
     else:
         db.session.delete(existing_scrap)
         db.session.commit()
@@ -358,6 +364,11 @@ def report_job(job_id):
             reason=reason_detail or None,
         )
     )
-    db.session.commit()
-    flash("공고 신고가 접수되었습니다. 관리자가 확인할 예정입니다.", "success")
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        flash("이미 신고 이력이 있는 공고입니다. 같은 공고는 다시 신고할 수 없습니다.", "info")
+    else:
+        flash("공고 신고가 접수되었습니다. 관리자가 확인할 예정입니다.", "success")
     return redirect(url_for("jobs.job_detail", job_id=job.job_id))

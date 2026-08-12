@@ -20,7 +20,7 @@
 
   <form class="admin-filter" method="get" action="{{ url_for('admin.review_reports') }}">
     <label for="status">상태</label>
-    <select id="status" name="status" onchange="this.form.submit()">
+    <select id="status" name="status" data-auto-submit>
       {% for value, label in status_labels.items() %}
       <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
       {% endfor %}
@@ -69,11 +69,11 @@
             {% if report.status == 'pending' %}
             <form method="post" action="{{ url_for('admin.hide_reported_review_from_review_reports', report_id=report.report_id, status=status_filter) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <button class="admin-danger-action" type="submit" onclick="return confirm('이 신고를 처리하고 리뷰를 숨기시겠습니까?')">리뷰 숨김</button>
+              <button class="admin-danger-action" type="submit" data-confirm="이 신고를 처리하고 리뷰를 숨기시겠습니까?">리뷰 숨김</button>
             </form>
             <form method="post" action="{{ url_for('admin.dismiss_review_report_from_review_reports', report_id=report.report_id, status=status_filter) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <button type="submit" onclick="return confirm('이 리뷰 신고를 기각하시겠습니까?')">기각</button>
+              <button type="submit" data-confirm="이 리뷰 신고를 기각하시겠습니까?">기각</button>
             </form>
             {% endif %}
           </td>

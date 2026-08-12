@@ -37,7 +37,7 @@
           <span class="resume-preview-text"><strong>{{ resume.original_filename or '이력서' }}</strong><small>{{ resume.uploaded_at.strftime('%Y.%m.%d') }} 등록 · {{ '미리보기' if (resume.original_filename or '').lower().endswith('.pdf') else '다운로드' }}</small></span>
           <span class="resume-preview-arrow">↗</span>
         </a>
-        <form method="post" action="{{ url_for('profile.resume_delete', resume_id=resume.resume_id) }}" onsubmit="return confirm('내 이력서에서 삭제하시겠습니까? 기존 지원서의 제출본은 유지됩니다.');">
+        <form method="post" action="{{ url_for('profile.resume_delete', resume_id=resume.resume_id) }}" data-confirm="내 이력서에서 삭제하시겠습니까? 기존 지원서의 제출본은 유지됩니다.">
           {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
           <input type="hidden" name="return_to" value="resumes">
           <button class="resume-delete-button" type="submit">삭제</button>
@@ -51,7 +51,7 @@
   </section>
 </section>
 
-<script>
+<script nonce="{{ csp_nonce }}">
   const resumeInput = document.getElementById('resume_management_file');
   const resumeFilename = document.querySelector('.mypage-resume-filename');
   if (resumeInput) resumeInput.addEventListener('change', () => {

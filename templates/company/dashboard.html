@@ -34,7 +34,7 @@
             {% if current_status not in ['closed', 'blocked'] %}
             <form method="post" action="{{ url_for('company.job_close', job_id=job.job_id) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <button type="submit" onclick="return confirm('이 공고를 마감하시겠습니까?')">마감</button>
+              <button type="submit" data-confirm="이 공고를 마감하시겠습니까?">마감</button>
             </form>
             {% endif %}
           </td>
