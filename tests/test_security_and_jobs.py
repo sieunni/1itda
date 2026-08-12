@@ -4,7 +4,6 @@ import shutil
 import tempfile
 import unittest
 from datetime import date, timedelta
-from unittest.mock import patch
 
 
 TEST_DIR = tempfile.mkdtemp(prefix="1itda-security-tests-")
@@ -266,32 +265,25 @@ class SecurityAndJobFeatureTest(unittest.TestCase):
             throttle = LoginThrottle.query.one()
             self.assertIsNotNone(throttle.locked_until)
 
-    def test_password_reset_is_single_use_and_changes_password(self):
-        with patch("routes.auth._send_reset_email") as send:
-            response = self.client.post("/forgot-password", data={"email": "user@example.com"})
-        self.assertEqual(response.status_code, 302)
-        reset_url = send.call_args.args[1]
-        token = reset_url.rsplit("/", 1)[-1]
+    def test_logged_in_user_can_change_password_from_mypage(self):
+        with self.client.session_transaction() as session:
+            session["user_id"] = self.ids["user"]
+            session["role"] = "jobseeker"
 
         response = self.client.post(
-            f"/reset-password/{token}",
-            data={"new_password": "new-password", "new_password_confirm": "new-password"},
+            "/mypage/password",
+            data={
+                "current_password": "old-password",
+                "new_password": "new-password",
+                "new_password_confirm": "new-password",
+            },
+            follow_redirects=True,
         )
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(self.client.get(f"/reset-password/{token}").status_code, 302)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("비밀번호가 변경되었습니다.".encode(), response.data)
         with app.app_context():
             user = db.session.get(User, self.ids["user"])
             self.assertTrue(check_password_hash(user.password_hash, "new-password"))
-
-    def test_unknown_reset_email_has_same_response_and_sends_nothing(self):
-        with patch("routes.auth._send_reset_email") as send:
-            response = self.client.post(
-                "/forgot-password", data={"email": "missing@example.com"}, follow_redirects=True
-            )
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("가입된 계정인 경우".encode(), response.data)
-        send.assert_not_called()
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -12,7 +12,6 @@ class User(db.Model):
     role = db.Column(db.String(20), nullable=False)  # jobseeker / company / admin
     name = db.Column(db.String(80))
     is_active = db.Column(db.Boolean, default=True, nullable=False)
-    password_reset_nonce = db.Column(db.String(64))
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     company = db.relationship("Company", back_populates="owner", uselist=False)

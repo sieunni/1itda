@@ -1,5 +1,4 @@
 import os
-import secrets
 import uuid
 
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_from_directory, session, url_for
@@ -292,7 +291,6 @@ def change_password():
         flash("현재 비밀번호와 다른 비밀번호를 입력해 주세요.", "error")
     else:
         user.password_hash = generate_password_hash(new_password)
-        user.password_reset_nonce = secrets.token_urlsafe(32)
         db.session.commit()
         flash("비밀번호가 변경되었습니다.", "success")
 

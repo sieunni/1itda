@@ -42,11 +42,6 @@ def ensure_schema_compatibility():
         )
         db.session.commit()
 
-    user_columns = {column["name"] for column in inspector.get_columns("users")}
-    if "password_reset_nonce" not in user_columns:
-        db.session.execute(text("ALTER TABLE users ADD COLUMN password_reset_nonce VARCHAR(64)"))
-        db.session.commit()
-
     resume_columns = {column["name"] for column in inspector.get_columns("resumes")}
     if "is_deleted" not in resume_columns:
         db.session.execute(
