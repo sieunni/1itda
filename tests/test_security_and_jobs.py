@@ -128,6 +128,26 @@ class SecurityAndJobFeatureTest(unittest.TestCase):
         self.assertEqual(self.client.get(f'/jobs/{self.ids["expired_approved"]}').status_code, 404)
         self.assertEqual(self.client.get(f'/jobs/{self.ids["expired_pending"]}').status_code, 404)
 
+    def test_cancelled_application_reapply_shows_specific_message(self):
+        with app.app_context():
+            application = Application(
+                user_id=self.ids["user"],
+                job_id=self.ids["active"],
+                status="cancelled",
+            )
+            db.session.add(application)
+            db.session.commit()
+
+        self.set_session(self.ids["user"], "jobseeker")
+        response = self.client.get(
+            f'/jobs/{self.ids["active"]}/apply', follow_redirects=True
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(
+            "지원 취소 이력이 있는 공고에는 다시 지원할 수 없습니다.".encode(),
+            response.data,
+        )
+
     def test_view_count_is_once_per_browser_session(self):
         url = f'/jobs/{self.ids["active"]}'
         self.assertEqual(self.client.get(url).status_code, 200)

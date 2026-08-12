@@ -47,7 +47,13 @@ def apply(job_id):
 
     existing_application = Application.query.filter_by(user_id=user.user_id, job_id=job.job_id).first()
     if existing_application:
-        flash("이미 지원한 공고입니다.", "error")
+        if existing_application.status == "cancelled":
+            message = "지원 취소 이력이 있는 공고에는 다시 지원할 수 없습니다."
+        elif existing_application.status in {"accepted", "rejected"}:
+            message = "이미 지원 결과가 처리된 공고입니다."
+        else:
+            message = "이미 지원한 공고입니다."
+        flash(message, "error")
         return redirect(url_for("profile.mypage"))
 
     resumes = (
