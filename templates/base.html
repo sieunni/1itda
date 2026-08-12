@@ -23,7 +23,12 @@
         <li><a href="{{ url_for('chat.chat_list') }}">채팅</a></li>
         <li><a href="{{ url_for('profile.mypage') }}">마이페이지</a></li>
         {% endif %}
-        <li><a href="{{ url_for('auth.logout') }}">로그아웃</a></li>
+        <li>
+          <form class="nav-logout-form" method="post" action="{{ url_for('auth.logout') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="nav-logout-button" type="submit">로그아웃</button>
+          </form>
+        </li>
         {% else %}
         <li><a href="{{ url_for('auth.login') }}">로그인</a></li>
         <li><a href="{{ url_for('auth.join') }}" class="btn-signup">회원가입</a></li>

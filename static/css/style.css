@@ -118,6 +118,18 @@ body {
   color: var(--color-primary);
 }
 
+.nav-logout-form { margin: 0; }
+.nav-logout-button {
+  padding: 0;
+  color: var(--color-text);
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+.nav-logout-button:hover { color: var(--color-primary); }
+
 .btn-signup {
   background: var(--color-primary);
   color: #fff !important;

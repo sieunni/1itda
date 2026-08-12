@@ -318,7 +318,7 @@ class ReviewFeatureTest(unittest.TestCase):
             self.assertEqual({report.status for report in reports}, {"hidden"})
             self.assertTrue(all(report.handled_by == self.ids["admin"] for report in reports))
 
-        self.client.get("/logout")
+        self.client.post("/logout")
         self.assertNotIn("좋은 개발 문화".encode(), self.client.get("/reviews").data)
         company_page = self.client.get(f"/companies/{self.ids['company']}/reviews")
         self.assertNotIn("좋은 개발 문화".encode(), company_page.data)

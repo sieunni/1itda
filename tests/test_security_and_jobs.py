@@ -285,5 +285,26 @@ class SecurityAndJobFeatureTest(unittest.TestCase):
             user = db.session.get(User, self.ids["user"])
             self.assertTrue(check_password_hash(user.password_hash, "new-password"))
 
+    def test_logout_is_post_only_and_csrf_protected(self):
+        with self.client.session_transaction() as session:
+            session["user_id"] = self.ids["user"]
+            session["role"] = "jobseeker"
+
+        self.assertEqual(self.client.get("/logout").status_code, 405)
+        with self.client.session_transaction() as session:
+            self.assertEqual(session.get("user_id"), self.ids["user"])
+
+        app.config["WTF_CSRF_ENABLED"] = True
+        try:
+            self.assertEqual(self.client.post("/logout").status_code, 400)
+            with self.client.session_transaction() as session:
+                self.assertEqual(session.get("user_id"), self.ids["user"])
+        finally:
+            app.config["WTF_CSRF_ENABLED"] = False
+
+        self.assertEqual(self.client.post("/logout").status_code, 302)
+        with self.client.session_transaction() as session:
+            self.assertNotIn("user_id", session)
+
 if __name__ == "__main__":
     unittest.main()
