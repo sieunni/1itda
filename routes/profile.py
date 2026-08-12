@@ -9,6 +9,8 @@ from werkzeug.utils import secure_filename
 
 from extensions import db
 from models import Application, Job, Resume, Scrap, User
+from resume_validation import is_valid_resume_file
+from session_security import refresh_user_session
 
 profile_bp = Blueprint("profile", __name__)
 ALLOWED_RESUME_EXTENSIONS = {"pdf", "doc", "docx"}
@@ -53,6 +55,9 @@ def resume_upload():
     extension = original_name.rsplit(".", 1)[1].lower()
     if extension not in ALLOWED_RESUME_EXTENSIONS:
         flash("이력서는 PDF, DOC, DOCX 파일만 등록할 수 있습니다.", "error")
+        return _resume_management_redirect()
+    if not is_valid_resume_file(uploaded_file, extension):
+        flash("파일 형식과 내용이 일치하는 이력서만 등록할 수 있습니다.", "error")
         return _resume_management_redirect()
 
     stored_filename = f"{uuid.uuid4().hex}.{extension}"
@@ -292,6 +297,7 @@ def change_password():
     else:
         user.password_hash = generate_password_hash(new_password)
         db.session.commit()
+        refresh_user_session(user)
         flash("비밀번호가 변경되었습니다.", "success")
 
     return redirect(url_for("profile.mypage"))

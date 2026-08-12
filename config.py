@@ -12,7 +12,7 @@ os.makedirs(os.path.join(BASE_DIR, "uploads"), exist_ok=True)
 
 
 class Config:
-    SECRET_KEY = os.environ.get("SECRET_KEY", "dev")
+    SECRET_KEY = os.environ.get("SECRET_KEY")
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         "DATABASE_URL", f"sqlite:///{os.path.join(BASE_DIR, 'instance', '1itda.db')}"
     )
@@ -22,3 +22,16 @@ class Config:
     MAX_CONTENT_LENGTH = 5 * 1024 * 1024  # 업로드 최대 5MB
 
     DEBUG = os.environ.get("FLASK_DEBUG", "0") == "1"
+    APP_BASE_URL = os.environ.get("APP_BASE_URL", "http://127.0.0.1:5000").rstrip("/")
+
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+    SESSION_COOKIE_SECURE = os.environ.get("SESSION_COOKIE_SECURE", "0") == "1"
+
+    PASSWORD_RESET_MAX_AGE = int(os.environ.get("PASSWORD_RESET_MAX_AGE", "1800"))
+    MAIL_HOST = os.environ.get("MAIL_HOST")
+    MAIL_PORT = int(os.environ.get("MAIL_PORT", "587"))
+    MAIL_USERNAME = os.environ.get("MAIL_USERNAME")
+    MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD")
+    MAIL_FROM = os.environ.get("MAIL_FROM") or MAIL_USERNAME or "noreply@1itda.local"
+    MAIL_USE_TLS = os.environ.get("MAIL_USE_TLS", "1") == "1"

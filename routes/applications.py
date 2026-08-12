@@ -9,6 +9,7 @@ from werkzeug.utils import secure_filename
 from extensions import db
 from job_lifecycle import is_job_closed
 from models import Application, ApplicationStatusHistory, Job, Resume, User
+from resume_validation import is_valid_resume_file
 
 applications_bp = Blueprint("applications", __name__)
 
@@ -74,6 +75,9 @@ def apply(job_id):
             return render_template("applications/apply.html", job=job, user=user, resumes=resumes), 400
 
         extension = original_filename.rsplit(".", 1)[1].lower()
+        if not is_valid_resume_file(uploaded_file, extension):
+            flash("파일 형식과 내용이 일치하는 이력서만 등록할 수 있습니다.", "error")
+            return render_template("applications/apply.html", job=job, user=user, resumes=resumes), 400
         stored_filename = f"{uuid.uuid4().hex}.{extension}"
         saved_path = os.path.join(current_app.config["UPLOAD_FOLDER"], stored_filename)
         uploaded_file.save(saved_path)

@@ -7,6 +7,7 @@ Run from the project root:
 
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+import os
 import sys
 
 from werkzeug.security import generate_password_hash
@@ -22,7 +23,6 @@ from models import Company, Job, User
 JOBSEEKER_EMAIL = "test@test.com"
 COMPANY_EMAIL = "co@test.com"
 ADMIN_EMAIL = "admin@test.com"
-TEST_PASSWORD = "test1234"
 
 COMPANY_NAME = "1ITDA 상세테스트 기업"
 COMPANY_DESCRIPTION = "공고 상세 페이지의 기업 소개 영역을 확인하기 위한 테스트 기업입니다."
@@ -84,12 +84,12 @@ def now_naive_utc():
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
-def upsert_user(email, role, name):
+def upsert_user(email, role, name, password):
     user = User.query.filter_by(email=email).first()
     if user is None:
         user = User(
             email=email,
-            password_hash=generate_password_hash(TEST_PASSWORD),
+            password_hash=generate_password_hash(password),
             role=role,
             name=name,
             is_active=True,
@@ -97,7 +97,7 @@ def upsert_user(email, role, name):
         db.session.add(user)
         db.session.flush()
     else:
-        user.password_hash = generate_password_hash(TEST_PASSWORD)
+        user.password_hash = generate_password_hash(password)
         user.role = role
         user.name = name
         user.is_active = True
@@ -145,10 +145,16 @@ def upsert_jobs(company):
 
 
 def main():
+    if os.environ.get("APP_ENV") != "development":
+        raise RuntimeError("Test data seeding is allowed only when APP_ENV=development.")
+    seed_password = os.environ.get("SEED_USER_PASSWORD")
+    if not seed_password or len(seed_password) < 12:
+        raise RuntimeError("SEED_USER_PASSWORD must be set to at least 12 characters.")
+
     with app.app_context():
-        company_user = upsert_user(COMPANY_EMAIL, "company", "상세테스트 기업 담당자")
-        upsert_user(JOBSEEKER_EMAIL, "jobseeker", "테스트 구직자")
-        upsert_user(ADMIN_EMAIL, "admin", "관리자")
+        company_user = upsert_user(COMPANY_EMAIL, "company", "상세테스트 기업 담당자", seed_password)
+        upsert_user(JOBSEEKER_EMAIL, "jobseeker", "테스트 구직자", seed_password)
+        upsert_user(ADMIN_EMAIL, "admin", "관리자", seed_password)
         company = upsert_company(company_user)
         jobs = upsert_jobs(company)
         db.session.commit()
@@ -157,7 +163,6 @@ def main():
         print(f"jobseeker_email={JOBSEEKER_EMAIL}")
         print(f"company_email={COMPANY_EMAIL}")
         print(f"admin_email={ADMIN_EMAIL}")
-        print(f"password={TEST_PASSWORD}")
         for job in jobs:
             visibility = "public" if job.status == "approved" else "private"
             print(f"{visibility}: /jobs/{job.job_id} - {job.title}")

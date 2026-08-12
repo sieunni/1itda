@@ -1,6 +1,8 @@
 import click
-from flask import Flask, render_template, session
+import hmac
+from flask import Flask, flash, jsonify, redirect, render_template, request, session, url_for
 from sqlalchemy import inspect, text
+from urllib.parse import urlsplit
 
 from config import Config
 from extensions import csrf, db
@@ -14,6 +16,7 @@ from routes.company import company_bp
 from routes.jobs import jobs_bp
 from routes.profile import profile_bp
 from routes.reviews import reviews_bp
+from session_security import auth_fingerprint
 
 
 def ensure_schema_compatibility():
@@ -58,6 +61,16 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
+    secret_key = app.config.get("SECRET_KEY")
+    if not secret_key or len(secret_key) < 32:
+        raise RuntimeError(
+            "SECRET_KEY must be set to an environment-specific value of at least 32 characters."
+        )
+
+    base_url = urlsplit(app.config["APP_BASE_URL"])
+    if base_url.scheme not in {"http", "https"} or not base_url.netloc:
+        raise RuntimeError("APP_BASE_URL must be an absolute http:// or https:// URL.")
+
     db.init_app(app)
     csrf.init_app(app)
 
@@ -71,8 +84,62 @@ def create_app():
     app.register_blueprint(reviews_bp)
 
     @app.before_request
+    def reject_inactive_session():
+        if request.endpoint == "static" or request.endpoint == "auth.logout":
+            return None
+
+        user_id = session.get("user_id")
+        if not user_id:
+            return None
+
+        user = db.session.get(User, user_id)
+        fingerprint = session.get("auth_fingerprint")
+        if (
+            user is not None
+            and user.is_active
+            and fingerprint
+            and hmac.compare_digest(fingerprint, auth_fingerprint(user))
+        ):
+            return None
+
+        session.clear()
+        if user is None or (user is not None and user.is_active):
+            message = "사용자 정보를 확인할 수 없습니다."
+        else:
+            message = "관리자에 의해 차단된 계정입니다."
+
+        if request.endpoint in {"chat.send_message", "chat.poll_messages"}:
+            return jsonify({"error": message}), 403
+
+        flash(message, "error")
+        if request.endpoint == "auth.login":
+            return None
+        return redirect(url_for("auth.login"))
+
+    @app.before_request
     def synchronize_expired_jobs():
         close_expired_jobs()
+
+    @app.after_request
+    def add_security_headers(response):
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault(
+            "Permissions-Policy", "camera=(), microphone=(), geolocation=()"
+        )
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+            "style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
+            "object-src 'none'; base-uri 'self'; frame-ancestors 'self'; "
+            "form-action 'self'",
+        )
+        if app.config["SESSION_COOKIE_SECURE"]:
+            response.headers.setdefault(
+                "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+            )
+        return response
 
     @app.cli.command("close-expired-jobs")
     def close_expired_jobs_command():

@@ -8,11 +8,12 @@ import unittest
 TEST_DIR = tempfile.mkdtemp(prefix="1itda-review-tests-")
 atexit.register(shutil.rmtree, TEST_DIR, ignore_errors=True)
 os.environ["DATABASE_URL"] = "sqlite:///" + os.path.join(TEST_DIR, "test.db").replace("\\", "/")
-os.environ["SECRET_KEY"] = "review-test-secret"
+os.environ["SECRET_KEY"] = "review-test-secret-for-tests-only-123"
 
 from app import app
 from extensions import db
 from models import Company, Job, Report, Review, ReviewReport, User
+from session_security import auth_fingerprint
 
 
 class ReviewFeatureTest(unittest.TestCase):
@@ -45,9 +46,13 @@ class ReviewFeatureTest(unittest.TestCase):
                         "inactive_company": self.inactive_company.company_id}
 
     def login_as(self, user_id, role):
+        with app.app_context():
+            user = db.session.get(User, user_id)
+            fingerprint = auth_fingerprint(user)
         with self.client.session_transaction() as session:
             session["user_id"] = user_id
             session["role"] = role
+            session["auth_fingerprint"] = fingerprint
 
     def create_review(self):
         with app.app_context():

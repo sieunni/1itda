@@ -1,20 +1,27 @@
 import atexit
+import io
 import os
 import shutil
 import tempfile
 import unittest
+import zipfile
 from datetime import date, timedelta
+from unittest.mock import patch
 
 
 TEST_DIR = tempfile.mkdtemp(prefix="1itda-security-tests-")
 atexit.register(shutil.rmtree, TEST_DIR, ignore_errors=True)
 os.environ["DATABASE_URL"] = "sqlite:///" + os.path.join(TEST_DIR, "test.db").replace("\\", "/")
-os.environ["SECRET_KEY"] = "security-test-secret"
+os.environ["SECRET_KEY"] = "security-test-secret-for-tests-only"
 
-from app import app
+from app import app, create_app
+from config import Config
 from extensions import db
 from job_lifecycle import close_expired_jobs
-from models import Application, Company, Job, LoginThrottle, Resume, User
+from models import Application, ChatMessage, Company, Job, LoginThrottle, Resume, User
+from session_security import auth_fingerprint
+from routes.auth import _send_reset_email
+from scripts import seed_test_data
 from werkzeug.security import check_password_hash, generate_password_hash
 
 
@@ -62,11 +69,52 @@ class SecurityAndJobFeatureTest(unittest.TestCase):
             db.session.commit()
             self.ids = {
                 "user": self.jobseeker.user_id,
+                "company_user": company_user.user_id,
+                "company": company.company_id,
                 "admin": self.admin.user_id,
                 "expired_approved": jobs[0].job_id,
                 "expired_pending": jobs[1].job_id,
                 "active": jobs[2].job_id,
             }
+
+    def set_session(self, user_id, role, client=None):
+        client = client or self.client
+        with app.app_context():
+            user = db.session.get(User, user_id)
+            fingerprint = auth_fingerprint(user)
+        with client.session_transaction() as session:
+            session["user_id"] = user_id
+            session["role"] = role
+            session["auth_fingerprint"] = fingerprint
+
+    def block_user(self, user_id):
+        with app.app_context():
+            user = db.session.get(User, user_id)
+            user.is_active = False
+            db.session.commit()
+
+    def assert_session_cleared(self):
+        with self.client.session_transaction() as session:
+            self.assertNotIn("user_id", session)
+
+    def create_application_with_resume(self):
+        with app.app_context():
+            resume = Resume(
+                user_id=self.ids["user"],
+                file_path="blocked-user.pdf",
+                original_filename="blocked-user.pdf",
+            )
+            db.session.add(resume)
+            db.session.flush()
+            application = Application(
+                user_id=self.ids["user"],
+                job_id=self.ids["active"],
+                resume_id=resume.resume_id,
+                resume_snapshot=resume.original_filename,
+            )
+            db.session.add(application)
+            db.session.commit()
+            return application.application_id, resume.resume_id
 
     def test_expired_approved_job_closes_but_pending_job_stays_private(self):
         with app.app_context():
@@ -135,9 +183,7 @@ class SecurityAndJobFeatureTest(unittest.TestCase):
                 db.session.commit()
                 resume_id = resume.resume_id
 
-            with self.client.session_transaction() as session:
-                session["user_id"] = self.ids["user"]
-                session["role"] = "jobseeker"
+            self.set_session(self.ids["user"], "jobseeker")
             original_upload_folder = app.config["UPLOAD_FOLDER"]
             app.config["UPLOAD_FOLDER"] = upload_dir
             try:
@@ -169,9 +215,7 @@ class SecurityAndJobFeatureTest(unittest.TestCase):
             )
             db.session.commit()
 
-        with self.client.session_transaction() as session:
-            session["user_id"] = self.ids["user"]
-            session["role"] = "jobseeker"
+        self.set_session(self.ids["user"], "jobseeker")
         mypage = self.client.get("/mypage")
         self.assertIn(b'href="/mypage/resumes"', mypage.data)
         management = self.client.get("/mypage/resumes")
@@ -200,9 +244,7 @@ class SecurityAndJobFeatureTest(unittest.TestCase):
             db.session.commit()
             resume_id = resume.resume_id
 
-        with self.client.session_transaction() as session:
-            session["user_id"] = self.ids["user"]
-            session["role"] = "jobseeker"
+        self.set_session(self.ids["user"], "jobseeker")
         response = self.client.post(
             f"/mypage/resumes/{resume_id}/delete", follow_redirects=True
         )
@@ -230,9 +272,7 @@ class SecurityAndJobFeatureTest(unittest.TestCase):
 
         url = f'/jobs/{self.ids["expired_approved"]}'
         self.assertEqual(self.client.get(url).status_code, 404)
-        with self.client.session_transaction() as session:
-            session["user_id"] = self.ids["user"]
-            session["role"] = "jobseeker"
+        self.set_session(self.ids["user"], "jobseeker")
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertIn("마감".encode(), response.data)
@@ -266,9 +306,7 @@ class SecurityAndJobFeatureTest(unittest.TestCase):
             self.assertIsNotNone(throttle.locked_until)
 
     def test_logged_in_user_can_change_password_from_mypage(self):
-        with self.client.session_transaction() as session:
-            session["user_id"] = self.ids["user"]
-            session["role"] = "jobseeker"
+        self.set_session(self.ids["user"], "jobseeker")
 
         response = self.client.post(
             "/mypage/password",
@@ -285,11 +323,148 @@ class SecurityAndJobFeatureTest(unittest.TestCase):
             user = db.session.get(User, self.ids["user"])
             self.assertTrue(check_password_hash(user.password_hash, "new-password"))
 
-    def test_logout_is_post_only_and_csrf_protected(self):
-        with self.client.session_transaction() as session:
-            session["user_id"] = self.ids["user"]
-            session["role"] = "jobseeker"
+    def test_password_reset_is_single_use_and_changes_password(self):
+        stale_client = app.test_client()
+        self.set_session(self.ids["user"], "jobseeker", client=stale_client)
 
+        with patch("routes.auth._send_reset_email") as send:
+            response = self.client.post("/forgot-password", data={"email": "user@example.com"})
+        self.assertEqual(response.status_code, 302)
+        reset_url = send.call_args.args[1]
+        token = reset_url.rsplit("/", 1)[-1]
+
+        response = self.client.post(
+            f"/reset-password/{token}",
+            data={"new_password": "new-password", "new_password_confirm": "new-password"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(self.client.get(f"/reset-password/{token}").status_code, 302)
+        with app.app_context():
+            user = db.session.get(User, self.ids["user"])
+            self.assertTrue(check_password_hash(user.password_hash, "new-password"))
+        self.assertEqual(stale_client.get("/mypage").status_code, 302)
+        with stale_client.session_transaction() as stale_session:
+            self.assertNotIn("user_id", stale_session)
+
+    def test_app_creation_rejects_missing_secret_key(self):
+        with patch.object(Config, "SECRET_KEY", None):
+            with self.assertRaisesRegex(RuntimeError, "SECRET_KEY must be set"):
+                create_app()
+
+    def test_seed_script_refuses_non_development_environment(self):
+        with patch.dict(os.environ, {"APP_ENV": "production"}, clear=False):
+            with self.assertRaisesRegex(RuntimeError, "only when APP_ENV=development"):
+                seed_test_data.main()
+
+    def test_password_reset_uses_configured_origin_not_request_host(self):
+        original_base_url = app.config["APP_BASE_URL"]
+        app.config["APP_BASE_URL"] = "https://accounts.example.test"
+        try:
+            with patch("routes.auth._send_reset_email") as send:
+                response = self.client.post(
+                    "/forgot-password",
+                    data={"email": "user@example.com"},
+                    headers={"Host": "attacker.example"},
+                )
+        finally:
+            app.config["APP_BASE_URL"] = original_base_url
+
+        self.assertEqual(response.status_code, 302)
+        reset_url = send.call_args.args[1]
+        self.assertTrue(reset_url.startswith("https://accounts.example.test/reset-password/"))
+        self.assertNotIn("attacker.example", reset_url)
+
+    def test_missing_mail_configuration_does_not_log_reset_token(self):
+        original_mail_host = app.config.get("MAIL_HOST")
+        app.config["MAIL_HOST"] = None
+        try:
+            with app.app_context(), self.assertLogs(app.logger, level="WARNING") as logs:
+                _send_reset_email(self.jobseeker, "https://example.test/reset/sensitive-token")
+        finally:
+            app.config["MAIL_HOST"] = original_mail_host
+
+        output = "\n".join(logs.output)
+        self.assertNotIn("sensitive-token", output)
+        self.assertNotIn(self.jobseeker.email, output)
+
+    def test_password_change_invalidates_other_existing_session(self):
+        other_client = app.test_client()
+        self.set_session(self.ids["user"], "jobseeker")
+        self.set_session(self.ids["user"], "jobseeker", client=other_client)
+
+        changed = self.client.post(
+            "/mypage/password",
+            data={
+                "current_password": "old-password",
+                "new_password": "changed-password",
+                "new_password_confirm": "changed-password",
+            },
+        )
+        self.assertEqual(changed.status_code, 302)
+        self.assertEqual(self.client.get("/mypage").status_code, 200)
+
+        stale = other_client.get("/mypage")
+        self.assertEqual(stale.status_code, 302)
+        self.assertIn("/login", stale.headers["Location"])
+        with other_client.session_transaction() as stale_session:
+            self.assertNotIn("user_id", stale_session)
+
+    def test_resume_upload_checks_mimetype_and_file_signature(self):
+        original_upload_folder = app.config["UPLOAD_FOLDER"]
+        with tempfile.TemporaryDirectory(prefix="1itda-upload-validation-") as upload_dir:
+            app.config["UPLOAD_FOLDER"] = upload_dir
+            try:
+                self.set_session(self.ids["user"], "jobseeker")
+                invalid = self.client.post(
+                    "/mypage/resumes/upload",
+                    data={"resume_file": (io.BytesIO(b"not a pdf"), "resume.pdf", "application/pdf")},
+                    content_type="multipart/form-data",
+                    follow_redirects=True,
+                )
+                self.assertEqual(invalid.status_code, 200)
+                self.assertIn("파일 형식과 내용이 일치".encode(), invalid.data)
+
+                valid = self.client.post(
+                    "/mypage/resumes/upload",
+                    data={
+                        "resume_file": (
+                            io.BytesIO(b"%PDF-1.7\nminimal test document"),
+                            "resume.pdf",
+                            "application/pdf",
+                        )
+                    },
+                    content_type="multipart/form-data",
+                )
+                self.assertEqual(valid.status_code, 302)
+            finally:
+                app.config["UPLOAD_FOLDER"] = original_upload_folder
+        with app.app_context():
+            self.assertEqual(Resume.query.filter_by(user_id=self.ids["user"]).count(), 1)
+
+    def test_docx_validation_requires_word_document_structure(self):
+        fake_zip = io.BytesIO()
+        with zipfile.ZipFile(fake_zip, "w") as archive:
+            archive.writestr("unrelated.txt", "not a document")
+        fake_zip.seek(0)
+
+        self.set_session(self.ids["user"], "jobseeker")
+        response = self.client.post(
+            "/mypage/resumes/upload",
+            data={
+                "resume_file": (
+                    fake_zip,
+                    "resume.docx",
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                )
+            },
+            content_type="multipart/form-data",
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("파일 형식과 내용이 일치".encode(), response.data)
+
+    def test_logout_is_post_only_and_csrf_protected(self):
+        self.set_session(self.ids["user"], "jobseeker")
         self.assertEqual(self.client.get("/logout").status_code, 405)
         with self.client.session_transaction() as session:
             self.assertEqual(session.get("user_id"), self.ids["user"])
@@ -305,6 +480,145 @@ class SecurityAndJobFeatureTest(unittest.TestCase):
         self.assertEqual(self.client.post("/logout").status_code, 302)
         with self.client.session_transaction() as session:
             self.assertNotIn("user_id", session)
+        self.assert_session_cleared()
+
+    def test_cookie_and_response_security_headers(self):
+        response = self.client.post(
+            "/login",
+            data={"email": "user@example.com", "password": "old-password"},
+        )
+        cookie = response.headers.get("Set-Cookie", "")
+        self.assertIn("HttpOnly", cookie)
+        self.assertIn("SameSite=Lax", cookie)
+        self.assertEqual(response.headers["X-Content-Type-Options"], "nosniff")
+        self.assertEqual(response.headers["X-Frame-Options"], "SAMEORIGIN")
+        self.assertEqual(response.headers["Referrer-Policy"], "strict-origin-when-cross-origin")
+        self.assertEqual(
+            response.headers["Permissions-Policy"],
+            "camera=(), microphone=(), geolocation=()",
+        )
+        self.assertIn("object-src 'none'", response.headers["Content-Security-Policy"])
+
+        original_secure = app.config["SESSION_COOKIE_SECURE"]
+        app.config["SESSION_COOKIE_SECURE"] = True
+        try:
+            secure_response = self.client.get("/jobs")
+        finally:
+            app.config["SESSION_COOKIE_SECURE"] = original_secure
+        self.assertIn("max-age=31536000", secure_response.headers["Strict-Transport-Security"])
+
+    def test_blocked_jobseeker_session_cannot_read_chat(self):
+        application_id, _resume_id = self.create_application_with_resume()
+        self.set_session(self.ids["user"], "jobseeker")
+        self.block_user(self.ids["user"])
+
+        response = self.client.get(
+            f"/applications/{application_id}/chat", follow_redirects=True
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("관리자에 의해 차단된 계정입니다.".encode(), response.data)
+        self.assert_session_cleared()
+
+    def test_blocked_jobseeker_session_cannot_send_or_poll_chat_messages(self):
+        application_id, _resume_id = self.create_application_with_resume()
+        self.block_user(self.ids["user"])
+
+        self.set_session(self.ids["user"], "jobseeker")
+        send_response = self.client.post(
+            f"/applications/{application_id}/chat/messages",
+            data={"content": "차단 이후 메시지"},
+        )
+        self.assertEqual(send_response.status_code, 403)
+        self.assertEqual(
+            send_response.get_json(), {"error": "관리자에 의해 차단된 계정입니다."}
+        )
+        self.assert_session_cleared()
+
+        with app.app_context():
+            self.assertEqual(ChatMessage.query.filter_by(application_id=application_id).count(), 0)
+
+        self.set_session(self.ids["user"], "jobseeker")
+        poll_response = self.client.get(
+            f"/applications/{application_id}/chat/messages?after=0"
+        )
+        self.assertEqual(poll_response.status_code, 403)
+        self.assertEqual(
+            poll_response.get_json(), {"error": "관리자에 의해 차단된 계정입니다."}
+        )
+        self.assert_session_cleared()
+
+    def test_blocked_jobseeker_session_cannot_apply_cancel_or_upload_resume(self):
+        application_id, resume_id = self.create_application_with_resume()
+        with app.app_context():
+            new_job = Job(
+                company_id=self.ids["company"],
+                title="차단 사용자 지원 대상",
+                content="내용",
+                deadline=date.today() + timedelta(days=1),
+                status="approved",
+            )
+            db.session.add(new_job)
+            db.session.commit()
+            new_job_id = new_job.job_id
+        self.block_user(self.ids["user"])
+
+        for method, path, data in (
+            ("post", f"/jobs/{new_job_id}/apply", {}),
+            ("post", f"/mypage/applications/{application_id}/cancel", {}),
+            ("post", "/mypage/resumes/upload", {}),
+            ("get", f"/mypage/resumes/{resume_id}/preview", {}),
+        ):
+            with self.subTest(path=path):
+                self.set_session(self.ids["user"], "jobseeker")
+                response = getattr(self.client, method)(path, data=data)
+                self.assertEqual(response.status_code, 302)
+                self.assertIn("/login", response.headers["Location"])
+                self.assert_session_cleared()
+
+        with app.app_context():
+            self.assertIsNone(
+                Application.query.filter_by(
+                    user_id=self.ids["user"], job_id=new_job_id
+                ).first()
+            )
+            self.assertEqual(
+                db.session.get(Application, application_id).status, "submitted"
+            )
+            self.assertEqual(Resume.query.filter_by(user_id=self.ids["user"]).count(), 1)
+
+    def test_blocked_company_session_cannot_use_dashboard_or_chat(self):
+        application_id, _resume_id = self.create_application_with_resume()
+        self.block_user(self.ids["company_user"])
+
+        self.set_session(self.ids["company_user"], "company")
+        dashboard = self.client.get("/company/jobs")
+        self.assertEqual(dashboard.status_code, 302)
+        self.assertIn("/login", dashboard.headers["Location"])
+        self.assert_session_cleared()
+
+        self.set_session(self.ids["company_user"], "company")
+        send_response = self.client.post(
+            f"/applications/{application_id}/chat/messages",
+            data={"content": "차단 기업 메시지"},
+        )
+        self.assertEqual(send_response.status_code, 403)
+        self.assert_session_cleared()
+
+    def test_active_sessions_and_anonymous_public_pages_still_work(self):
+        application_id, _resume_id = self.create_application_with_resume()
+
+        self.assertEqual(self.client.get("/jobs").status_code, 200)
+        self.assertEqual(self.client.get("/reviews").status_code, 200)
+
+        self.set_session(self.ids["user"], "jobseeker")
+        self.assertEqual(
+            self.client.get(f"/applications/{application_id}/chat").status_code, 200
+        )
+
+        self.set_session(self.ids["company_user"], "company")
+        self.assertEqual(self.client.get("/company/jobs").status_code, 200)
+
 
 if __name__ == "__main__":
     unittest.main()

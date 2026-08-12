@@ -108,13 +108,15 @@ body {
   align-items: center;
 }
 
-.nav-links a {
+.nav-links a,
+.nav-logout-form button {
   color: var(--color-text);
   text-decoration: none;
   font-size: 0.95rem;
 }
 
-.nav-links a:hover {
+.nav-links a:hover,
+.nav-logout-form button:hover {
   color: var(--color-primary);
 }
 
@@ -1518,4 +1520,16 @@ a.stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(15,
   .chat-thread { height: 60vh; }
   .chat-list__item { align-items: flex-start; }
   .chat-list__topline { flex-direction: column; align-items: flex-start; gap: 4px; }
+}
+.nav-logout-form {
+  margin: 0;
+}
+
+.nav-logout-form button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
 }
