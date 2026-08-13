@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}신고 미리보기 - 1ITDA{% endblock %}
+
+{% block content %}
+<section class="admin-page">
+  <div class="admin-page-header">
+    <div>
+      <p class="admin-eyebrow">REPORT PREVIEW</p>
+      <h1>신고 상세 미리보기</h1>
+    </div>
+    <a class="btn btn-outline" href="{{ url_for('admin.job_reports') }}">목록</a>
+  </div>
+  <div class="admin-panel">
+    <p><strong>신고 사유</strong> {{ reason_label }}</p>
+    <div class="report-reason-detail">{{ reason|safe }}</div>
+  </div>
+</section>
+{% endblock %}

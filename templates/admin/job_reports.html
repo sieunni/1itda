@@ -66,6 +66,7 @@
             <span class="status-badge {{ 'status-blocked' if report.status == 'reviewed' else 'status-rejected' if report.status == 'rejected' else 'status-pending' if report.status == 'pending' else 'status-' ~ report.status }}">{{ report_status_labels.get(report.status, report.status) }}</span>
           </td>
           <td class="admin-actions">
+            <a href="{{ url_for('admin.preview_job_report', report_id=report.report_id) }}" target="_blank">미리보기</a>
             {% if report.status == 'pending' %}
             <form method="post" action="{{ url_for('admin.resolve_job_report', report_id=report.report_id, status=status_filter) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

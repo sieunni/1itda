@@ -58,6 +58,18 @@ def ensure_schema_compatibility():
         db.session.execute(text("ALTER TABLE jobs ADD COLUMN view_count INTEGER NOT NULL DEFAULT 0"))
         db.session.commit()
 
+    if "reviewed_title" not in job_columns:
+        db.session.execute(text("ALTER TABLE jobs ADD COLUMN reviewed_title VARCHAR(200)"))
+        db.session.commit()
+
+    if "reviewed_content" not in job_columns:
+        db.session.execute(text("ALTER TABLE jobs ADD COLUMN reviewed_content TEXT"))
+        db.session.commit()
+
+    if "reviewed_company_description" not in job_columns:
+        db.session.execute(text("ALTER TABLE jobs ADD COLUMN reviewed_company_description TEXT"))
+        db.session.commit()
+
     report_indexes = {index["name"] for index in inspector.get_indexes("reports")}
     if "uq_reporter_target" not in report_indexes:
         duplicate = db.session.execute(

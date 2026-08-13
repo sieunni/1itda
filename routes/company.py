@@ -184,10 +184,10 @@ def job_new(company, user):
 @company_required
 def job_edit(company, user, job_id):
     job = owned_job_or_404(company, job_id)
-    if job.status == "blocked":
+    if request.method == "GET" and job.status == "blocked":
         flash("차단된 공고는 기업에서 수정할 수 없습니다.", "error")
         return redirect(url_for("company.dashboard"))
-    if effective_job_status(job) == "closed":
+    if request.method == "GET" and effective_job_status(job) == "closed":
         flash("마감된 공고는 수정할 수 없습니다.", "error")
         return redirect(url_for("company.dashboard"))
 
@@ -201,8 +201,9 @@ def job_edit(company, user, job_id):
         if not errors:
             for field, value in values.items():
                 setattr(job, field, value)
-            if job.status == "approved":
-                job.status = "pending"
+            original_status = request.form.get("original_status", "pending")
+            if original_status in {"pending", "approved"}:
+                job.status = original_status
             try:
                 db.session.commit()
             except SQLAlchemyError:

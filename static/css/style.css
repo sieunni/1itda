@@ -7,7 +7,6 @@
   --color-bg: #f9fafb;
 }
 
-/* Company reviews */
 .reviews-page, .review-detail, .review-form-page { max-width: 880px; margin: 0 auto; }
 .review-page-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
 .review-page-header span, .company-review-header > div > span, .review-form-card header span { color: var(--color-primary); font-size: .74rem; font-weight: 800; letter-spacing: .14em; }
@@ -258,7 +257,6 @@ body {
   color: var(--color-muted);
   font-size: 0.85rem;
 }
-/* 로그인·회원가입 */
 
 .auth-container {
   min-height: calc(100vh - 240px);
@@ -482,7 +480,6 @@ body {
   }
 }
 
-/* 플래시 메시지 */
 
 .flash-messages {
   display: flex;
@@ -510,7 +507,6 @@ body {
   border: 1px solid #bbf7d0;
 }
 
-/* 채용공고 목록·상세 */
 
 .jobs-page,
 .job-detail {
@@ -982,7 +978,6 @@ body {
   }
 }
 
-/* 기업 대시보드 */
 .company-page { display: flex; flex-direction: column; gap: 24px; }
 .company-page-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
 .company-page-header h1 { margin: 4px 0 8px; }
@@ -1044,7 +1039,6 @@ body {
   .company-resume-header .btn { text-align: center; }
 }
 
-/* 관리자 페이지 */
 
 .admin-page { display: flex; flex-direction: column; gap: 24px; }
 .admin-page-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
@@ -1130,7 +1124,6 @@ body {
 .admin-message-success { color: #065f46; background: #d1fae5; }
 .admin-message-error { color: #991b1b; background: #fee2e2; }
 
-/* 테이블 셀에 flex가 직접 적용되면 행 구분선이 끊기므로 셀 구조를 유지한다. */
 td.admin-actions,
 td.company-actions {
   display: table-cell;
@@ -1156,7 +1149,6 @@ td.company-actions > * + * {
   .admin-inline-form { flex-direction: column; }
 }
 
-/* 마이페이지 */
 
 .mypage-heading {
   display: flex;
@@ -1307,7 +1299,6 @@ a.stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(15,
   .profile-form .form-group, .profile-form-actions { grid-column: 1; }
 }
 
-/* 입사지원 */
 
 .apply-page { max-width: 980px; margin: 0 auto; }
 .apply-back { display: inline-block; margin-bottom: 24px; color: var(--color-muted); font-size: .88rem; text-decoration: none; }
@@ -1378,7 +1369,6 @@ a.stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(15,
   .apply-actions .btn { text-align: center; }
 }
 
-/* 지원 내역 */
 
 .application-history { display: flex; flex-direction: column; gap: 22px; }
 .application-history__header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
@@ -1428,7 +1418,6 @@ a.stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(15,
   .application-history__meta dd { max-width: calc(100vw - 150px); }
 }
 
-/* 스크랩 목록 */
 
 .scrap-history { display: flex; flex-direction: column; gap: 22px; }
 .scrap-history__header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
@@ -1468,7 +1457,6 @@ a.stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(15,
   .scrap-history__meta dd { max-width: calc(100vw - 150px); }
 }
 
-/* 채팅 */
 
 .chat-page { display: flex; flex-direction: column; gap: 20px; }
 .chat-page__header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }

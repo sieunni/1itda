@@ -231,8 +231,6 @@ def job_detail(job_id):
         and Application.query.filter_by(user_id=user_id, job_id=job.job_id).first()
     )
 
-    # Closed jobs stay hidden from the public, while people who actually
-    # applied retain access to the posting attached to their application.
     if not is_public and not (is_owner or is_admin or is_applicant):
         abort(404)
     is_preview = not is_public and not is_applicant
@@ -240,8 +238,6 @@ def job_detail(job_id):
     if job.status == "approved":
         viewed_job_ids = set(session.get("viewed_job_ids", []))
         if job.job_id not in viewed_job_ids:
-            # Increment in the database so simultaneous first views do not
-            # overwrite one another with the same value.
             db.session.execute(
                 update(Job)
                 .where(Job.job_id == job.job_id)

@@ -7,6 +7,7 @@
   <div class="company-page-header"><div><p class="company-eyebrow">JOB POSTING</p><h1>{{ page_title }}</h1><p>등록 후 관리자 승인 절차가 진행됩니다.</p></div></div>
   <form class="company-form" method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if job %}<input type="hidden" name="original_status" value="{{ job.status }}">{% endif %}
     <div class="form-group"><label for="title">공고 제목 *</label><input id="title" name="title" maxlength="200" required value="{{ request.form.get('title', job.title if job else '') }}"></div>
     <div class="company-form-row">
       {% set selected_region = request.form.get('region', job.region if job and job.region else '') %}

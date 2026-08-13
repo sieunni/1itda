@@ -9,7 +9,7 @@ class User(db.Model):
     user_id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
-    role = db.Column(db.String(20), nullable=False)  # jobseeker / company / admin
+    role = db.Column(db.String(20), nullable=False)
     name = db.Column(db.String(80))
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
@@ -101,10 +101,13 @@ class Job(db.Model):
     company_id = db.Column(db.Integer, db.ForeignKey("companies.company_id"), nullable=False)
     title = db.Column(db.String(200), nullable=False)
     content = db.Column(db.Text, nullable=False)
+    reviewed_title = db.Column(db.String(200))
+    reviewed_content = db.Column(db.Text)
+    reviewed_company_description = db.Column(db.Text)
     region = db.Column(db.String(80))
     industry = db.Column(db.String(80))
     deadline = db.Column(db.Date)
-    status = db.Column(db.String(20), nullable=False, default="pending")  # pending/approved/blocked/closed
+    status = db.Column(db.String(20), nullable=False, default="pending")
     view_count = db.Column(db.Integer, nullable=False, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -119,7 +122,7 @@ class Resume(db.Model):
 
     resume_id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.user_id"), nullable=False)
-    file_path = db.Column(db.String(255))  # 서버 저장 경로(난수 파일명)
+    file_path = db.Column(db.String(255))
     original_filename = db.Column(db.String(255))
     is_deleted = db.Column(db.Boolean, default=False, nullable=False)
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
@@ -133,8 +136,8 @@ class Application(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.user_id"), nullable=False)
     job_id = db.Column(db.Integer, db.ForeignKey("jobs.job_id"), nullable=False)
     resume_id = db.Column(db.Integer, db.ForeignKey("resumes.resume_id"))
-    resume_snapshot = db.Column(db.Text)  # 지원 당시 이력서 스냅샷(보존용)
-    status = db.Column(db.String(20), nullable=False, default="submitted")  # submitted/cancelled/accepted/rejected
+    resume_snapshot = db.Column(db.Text)
+    status = db.Column(db.String(20), nullable=False, default="submitted")
     applied_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     job = db.relationship("Job", back_populates="applications")
@@ -148,7 +151,7 @@ class ChatMessage(db.Model):
     message_id = db.Column(db.Integer, primary_key=True)
     application_id = db.Column(db.Integer, db.ForeignKey("applications.application_id"), nullable=False)
     sender_id = db.Column(db.Integer, db.ForeignKey("users.user_id"), nullable=False)
-    is_system = db.Column(db.Boolean, default=False, nullable=False)  # 합격/불합격 자동 통보 메시지 여부
+    is_system = db.Column(db.Boolean, default=False, nullable=False)
     content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
@@ -200,11 +203,11 @@ class Report(db.Model):
 
     report_id = db.Column(db.Integer, primary_key=True)
     reporter_id = db.Column(db.Integer, db.ForeignKey("users.user_id"), nullable=False)
-    target_type = db.Column(db.String(20), nullable=False)  # job / company / user
+    target_type = db.Column(db.String(20), nullable=False)
     target_id = db.Column(db.Integer, nullable=False)
-    reason_category = db.Column(db.String(30))  # REPORT_REASON_LABELS 키
-    reason = db.Column(db.Text)  # "기타" 상세 사유 또는 추가 설명
-    status = db.Column(db.String(20), nullable=False, default="pending")  # pending/reviewed/rejected/dismissed
+    reason_category = db.Column(db.String(30))
+    reason = db.Column(db.Text)
+    status = db.Column(db.String(20), nullable=False, default="pending")
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
@@ -213,8 +216,8 @@ class AdminActionLog(db.Model):
 
     log_id = db.Column(db.Integer, primary_key=True)
     admin_id = db.Column(db.Integer, db.ForeignKey("users.user_id"), nullable=False)
-    action_type = db.Column(db.String(40))  # 승인/차단/삭제 등
-    target_type = db.Column(db.String(20))  # job/company/user/report
+    action_type = db.Column(db.String(40))
+    target_type = db.Column(db.String(20))
     target_id = db.Column(db.Integer)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 

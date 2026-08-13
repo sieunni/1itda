@@ -30,7 +30,7 @@
       <tbody>
       {% for job in jobs %}
         <tr>
-          <td><a href="{{ url_for('jobs.job_detail', job_id=job.job_id) }}"><strong>{{ job.title }}</strong></a><small>{{ job.region or '지역 미정' }} · {{ job.industry or '업종 미정' }}</small></td>
+          <td><a href="{{ url_for('jobs.job_detail', job_id=job.job_id) }}"><strong>{{ job.reviewed_title if job.status != 'pending' and job.reviewed_title else job.title }}</strong></a><small>{{ (job.reviewed_content if job.status != 'pending' and job.reviewed_content else job.content)|truncate(70) }}</small></td>
           <td>{{ job.company.company_name if job.company else "-" }}</td>
           <td><span class="status-badge status-{{ job.status }}">{{ status_labels.get(job.status, job.status) }}</span></td>
           <td>{{ job.deadline or "상시 채용" }}</td>

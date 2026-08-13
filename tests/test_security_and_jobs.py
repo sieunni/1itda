@@ -21,7 +21,7 @@ from app import app, create_app
 from config import Config
 from extensions import db
 from job_lifecycle import close_expired_jobs
-from models import Application, ChatMessage, Company, Job, LoginThrottle, Resume, User
+from models import Application, ChatMessage, Company, Job, LoginThrottle, Report, Resume, User
 from session_security import auth_fingerprint
 from scripts import seed_test_data
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -805,6 +805,102 @@ class SecurityAndJobFeatureTest(unittest.TestCase):
 
         self.set_session(self.ids["company_user"], "company")
         self.assertEqual(self.client.get("/company/jobs").status_code, 200)
+
+    def test_approved_job_edit_keeps_trust_and_admin_sees_reviewed_snapshot(self):
+        with app.app_context():
+            job = Job(
+                company_id=self.ids["company"],
+                title="정상 공고",
+                content="관리자 검토 내용",
+                deadline=date.today() + timedelta(days=10),
+                status="pending",
+            )
+            db.session.add(job)
+            db.session.commit()
+            job_id = job.job_id
+
+        self.set_session(self.ids["admin"], "admin")
+        self.assertEqual(self.client.post(f"/admin/jobs/{job_id}/approve").status_code, 302)
+
+        self.set_session(self.ids["company_user"], "company")
+        response = self.client.post(
+            f"/company/jobs/{job_id}/edit",
+            data={
+                "title": "검토되지 않은 공고",
+                "content": "승인 후 변경된 내용",
+                "deadline": (date.today() + timedelta(days=10)).isoformat(),
+                "original_status": "approved",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+
+        with app.app_context():
+            job = db.session.get(Job, job_id)
+            self.assertEqual(job.status, "approved")
+            self.assertEqual(job.reviewed_title, "정상 공고")
+            self.assertEqual(job.title, "검토되지 않은 공고")
+
+        public_page = self.client.get(f"/jobs/{job_id}").get_data(as_text=True)
+        self.assertIn("검토되지 않은 공고", public_page)
+        self.set_session(self.ids["admin"], "admin")
+        admin_page = self.client.get("/admin/jobs").get_data(as_text=True)
+        self.assertIn("정상 공고", admin_page)
+        self.assertNotIn("검토되지 않은 공고", admin_page)
+
+    def test_stale_edit_request_revives_report_blocked_job(self):
+        company_client = app.test_client()
+        user_client = app.test_client()
+        admin_client = app.test_client()
+        self.set_session(self.ids["company_user"], "company", company_client)
+        self.set_session(self.ids["user"], "jobseeker", user_client)
+        self.set_session(self.ids["admin"], "admin", admin_client)
+
+        edit_url = f"/company/jobs/{self.ids['active']}/edit"
+        edit_page = company_client.get(edit_url)
+        self.assertIn(b'name="original_status" value="approved"', edit_page.data)
+
+        user_client.post(
+            f"/jobs/{self.ids['active']}/report",
+            data={"reason_category": "fraud_suspected", "reason_detail": "확인 필요"},
+        )
+        with app.app_context():
+            report_id = Report.query.filter_by(target_id=self.ids["active"]).one().report_id
+
+        admin_client.post(
+            f"/admin/reports/jobs/{report_id}/resolve",
+            data={"decision": "reviewed"},
+        )
+        with app.app_context():
+            self.assertEqual(db.session.get(Job, self.ids["active"]).status, "blocked")
+
+        company_client.post(
+            edit_url,
+            data={
+                "title": "오래된 화면에서 수정",
+                "content": "차단 이후 저장",
+                "deadline": (date.today() + timedelta(days=1)).isoformat(),
+                "original_status": "approved",
+            },
+        )
+        with app.app_context():
+            self.assertEqual(db.session.get(Job, self.ids["active"]).status, "approved")
+
+    def test_report_preview_renders_stored_event_handler_only_for_admin(self):
+        payload = '<img src=x onerror="document.body.dataset.pwned=1">'
+        self.set_session(self.ids["user"], "jobseeker")
+        self.client.post(
+            f"/jobs/{self.ids['active']}/report",
+            data={"reason_category": "etc", "reason_detail": payload},
+        )
+        with app.app_context():
+            report_id = Report.query.filter_by(target_id=self.ids["active"]).one().report_id
+
+        self.set_session(self.ids["admin"], "admin")
+        listing = self.client.get("/admin/reports/jobs?status=pending").get_data(as_text=True)
+        self.assertIn("&lt;img", listing)
+        preview = self.client.get(f"/admin/reports/jobs/{report_id}/preview")
+        self.assertIn(payload, preview.get_data(as_text=True))
+        self.assertIn("'unsafe-inline'", preview.headers["Content-Security-Policy"])
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 from functools import wraps
 from datetime import date, datetime
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, flash, make_response, redirect, render_template, request, session, url_for
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import case
 from sqlalchemy.orm import joinedload
@@ -236,6 +236,9 @@ def approve_job(admin, job_id):
     if job.deadline and job.deadline < date.today():
         flash("마감일이 지난 공고는 승인할 수 없습니다.", "error")
         return redirect(url_for("admin.jobs", status=request.args.get("status", "")))
+    job.reviewed_title = job.title
+    job.reviewed_content = job.content
+    job.reviewed_company_description = job.company.description if job.company else None
     job.status = "approved"
     log_action(admin, "approve", "job", job.job_id)
     _commit("공고를 승인했습니다.", "처리하지 못했습니다. 잠시 후 다시 시도해 주세요.")
@@ -343,6 +346,32 @@ def job_reports(admin):
         reporters=reporters,
         job_targets=job_targets,
     )
+
+
+@admin_bp.get("/reports/jobs/<int:report_id>/preview")
+@admin_required
+def preview_job_report(admin, report_id):
+    report = db.session.get(Report, report_id)
+    if report is None or report.target_type != "job":
+        abort(404)
+    reason = report.reason or ""
+    reason = reason.replace("<script>", "").replace("</script>", "")
+    response = make_response(
+        render_template(
+            "admin/job_report_preview.html",
+            report=report,
+            reason=reason,
+            reason_label=REPORT_REASON_LABELS.get(
+                report.reason_category,
+                report.reason_category or "미입력",
+            ),
+        )
+    )
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'"
+    )
+    return response
 
 
 @admin_bp.route("/reports/reviews")

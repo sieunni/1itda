@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Seed local Korean test data without PowerShell pipe encoding loss.
 
 Run from the project root:
