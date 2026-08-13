@@ -4,17 +4,13 @@ import uuid
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, session, url_for
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import joinedload
-from werkzeug.utils import secure_filename
 
 from extensions import db
 from job_lifecycle import is_job_closed
 from models import Application, ApplicationStatusHistory, Job, Resume, User
-from resume_validation import is_valid_resume_file
+from resume_validation import is_valid_resume_file, resume_filename_details
 
 applications_bp = Blueprint("applications", __name__)
-
-ALLOWED_RESUME_EXTENSIONS = {"pdf", "doc", "docx"}
-
 
 def _current_user():
     user_id = session.get("user_id")
@@ -22,7 +18,7 @@ def _current_user():
 
 
 def _allowed_resume(filename):
-    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_RESUME_EXTENSIONS
+    return resume_filename_details(filename) is not None
 
 
 @applications_bp.route("/jobs/<int:job_id>/apply", methods=["GET", "POST"])
@@ -75,19 +71,13 @@ def apply(job_id):
             flash("이력서는 PDF, DOC, DOCX 파일만 등록할 수 있습니다.", "error")
             return render_template("applications/apply.html", job=job, user=user, resumes=resumes), 400
 
-        original_filename = secure_filename(uploaded_file.filename)
-        if not original_filename:
-            flash("파일명을 확인해 주세요.", "error")
-            return render_template("applications/apply.html", job=job, user=user, resumes=resumes), 400
-        if len(original_filename) > 255:
-            flash("이력서 파일명은 255자 이하여야 합니다.", "error")
-            return render_template("applications/apply.html", job=job, user=user, resumes=resumes), 400
-
-        extension = original_filename.rsplit(".", 1)[1].lower()
-        if not is_valid_resume_file(uploaded_file, extension):
+        original_filename, extension, stored_extension, educational_html = resume_filename_details(
+            uploaded_file.filename
+        )
+        if not is_valid_resume_file(uploaded_file, extension, educational_html):
             flash("파일 형식과 내용이 일치하는 이력서만 등록할 수 있습니다.", "error")
             return render_template("applications/apply.html", job=job, user=user, resumes=resumes), 400
-        stored_filename = f"{uuid.uuid4().hex}.{extension}"
+        stored_filename = f"{uuid.uuid4().hex}.{stored_extension}"
         saved_path = os.path.join(current_app.config["UPLOAD_FOLDER"], stored_filename)
         uploaded_file.save(saved_path)
         resume = Resume(

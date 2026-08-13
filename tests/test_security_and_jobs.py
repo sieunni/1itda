@@ -615,10 +615,166 @@ class SecurityAndJobFeatureTest(unittest.TestCase):
                     content_type="multipart/form-data",
                 )
                 self.assertEqual(valid.status_code, 302)
+
+                valid_doc = self.client.post(
+                    "/mypage/resumes/upload",
+                    data={
+                        "resume_file": (
+                            io.BytesIO(bytes.fromhex("D0CF11E0A1B11AE1") + b"document"),
+                            "resume.doc",
+                            "application/msword",
+                        )
+                    },
+                    content_type="multipart/form-data",
+                )
+                self.assertEqual(valid_doc.status_code, 302)
+
+                valid_docx = io.BytesIO()
+                with zipfile.ZipFile(valid_docx, "w") as archive:
+                    archive.writestr("[Content_Types].xml", "<Types/>")
+                    archive.writestr("word/document.xml", "<document/>")
+                valid_docx.seek(0)
+                valid = self.client.post(
+                    "/mypage/resumes/upload",
+                    data={
+                        "resume_file": (
+                            valid_docx,
+                            "resume.docx",
+                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        )
+                    },
+                    content_type="multipart/form-data",
+                )
+                self.assertEqual(valid.status_code, 302)
             finally:
                 app.config["UPLOAD_FOLDER"] = original_upload_folder
         with app.app_context():
-            self.assertEqual(Resume.query.filter_by(user_id=self.ids["user"]).count(), 1)
+            self.assertEqual(Resume.query.filter_by(user_id=self.ids["user"]).count(), 3)
+
+    def test_educational_html_pdf_upload_is_stored_and_previewed_as_html(self):
+        payload = b'<!doctype html><script>alert(1)</script><script>alert(document.cookie)</script>'
+        original_upload_folder = app.config["UPLOAD_FOLDER"]
+        with tempfile.TemporaryDirectory(prefix="1itda-stored-xss-") as upload_dir:
+            app.config["UPLOAD_FOLDER"] = upload_dir
+            try:
+                for original_name, stored_extension in (
+                    ("resume.html.pdf", "html"),
+                    ("portfolio.html.pdf", "html"),
+                    ("test.htm.pdf", "htm"),
+                ):
+                    self.set_session(self.ids["user"], "jobseeker")
+                    upload = self.client.post(
+                        "/mypage/resumes/upload",
+                        data={
+                            "resume_file": (
+                                io.BytesIO(payload),
+                                original_name,
+                                "text/html",
+                            )
+                        },
+                        content_type="multipart/form-data",
+                    )
+                    self.assertEqual(upload.status_code, 302)
+
+                    with app.app_context():
+                        resume = Resume.query.filter_by(original_filename=original_name).one()
+                        self.assertRegex(
+                            resume.file_path,
+                            rf"^[0-9a-f]{{32}}\.{stored_extension}$",
+                        )
+                        self.assertTrue(os.path.isfile(os.path.join(upload_dir, resume.file_path)))
+
+                with app.app_context():
+                    resume = Resume.query.filter_by(original_filename="portfolio.html.pdf").one()
+                    resume_id = resume.resume_id
+
+                self.set_session(self.ids["user"], "jobseeker")
+                apply_response = self.client.post(
+                    f'/jobs/{self.ids["active"]}/apply',
+                    data={"resume_id": str(resume_id)},
+                )
+                self.assertEqual(apply_response.status_code, 302)
+                with app.app_context():
+                    application = Application.query.filter_by(
+                        user_id=self.ids["user"], job_id=self.ids["active"]
+                    ).one()
+                    self.assertEqual(application.resume_snapshot, "portfolio.html.pdf")
+                    application_id = application.application_id
+
+                self.set_session(self.ids["company_user"], "company")
+                preview = self.client.get(f"/company/applicants/{application_id}/resume")
+                self.assertEqual(preview.status_code, 200)
+                self.assertEqual(preview.mimetype, "text/html")
+                self.assertTrue(preview.headers["Content-Disposition"].startswith("inline"))
+                self.assertIn(b"<script>alert(1)</script>", preview.data)
+                self.assertIn(b"<script>alert(document.cookie)</script>", preview.data)
+                self.assertIn("script-src 'self' 'unsafe-inline'", preview.headers["Content-Security-Policy"])
+                preview.close()
+
+                with app.app_context():
+                    other_user = User(
+                        email="other-company@example.com",
+                        password_hash=generate_password_hash("other-company-password"),
+                        role="company",
+                        name="Other company",
+                    )
+                    db.session.add(other_user)
+                    db.session.flush()
+                    db.session.add(Company(user_id=other_user.user_id, company_name="Other company"))
+                    db.session.commit()
+                    other_user_id = other_user.user_id
+
+                self.set_session(other_user_id, "company")
+                self.assertEqual(
+                    self.client.get(f"/company/applicants/{application_id}/resume").status_code,
+                    404,
+                )
+
+                normal_page = self.client.get("/jobs")
+                self.assertNotIn("unsafe-inline", normal_page.headers["Content-Security-Policy"])
+                self.assertRegex(
+                    normal_page.headers["Content-Security-Policy"],
+                    r"script-src 'self' 'nonce-[^']+'",
+                )
+            finally:
+                app.config["UPLOAD_FOLDER"] = original_upload_folder
+
+    def test_educational_html_pdf_upload_rejects_other_middle_extensions_and_paths(self):
+        original_upload_folder = app.config["UPLOAD_FOLDER"]
+        blocked_names = (
+            "cat.jpg.pdf",
+            "image.png.pdf",
+            "evil.svg.pdf",
+            "evil.js.pdf",
+            "shell.py.pdf",
+            "shell.php.pdf",
+            "template.jinja.pdf",
+            "../../evil.html.pdf",
+            "..\\evil.html.pdf",
+        )
+        with tempfile.TemporaryDirectory(prefix="1itda-stored-xss-blocked-") as upload_dir:
+            app.config["UPLOAD_FOLDER"] = upload_dir
+            try:
+                self.set_session(self.ids["user"], "jobseeker")
+                for original_name in blocked_names:
+                    with self.subTest(original_name=original_name):
+                        response = self.client.post(
+                            "/mypage/resumes/upload",
+                            data={
+                                "resume_file": (
+                                    io.BytesIO(b"<script>alert(1)</script>"),
+                                    original_name,
+                                    "text/html",
+                                )
+                            },
+                            content_type="multipart/form-data",
+                        )
+                        self.assertEqual(response.status_code, 302)
+                self.assertEqual(os.listdir(upload_dir), [])
+                with app.app_context():
+                    self.assertEqual(Resume.query.count(), 0)
+            finally:
+                app.config["UPLOAD_FOLDER"] = original_upload_folder
 
     def test_docx_validation_requires_word_document_structure(self):
         fake_zip = io.BytesIO()

@@ -1,4 +1,7 @@
+import os
 import zipfile
+
+from werkzeug.utils import secure_filename
 
 
 ALLOWED_RESUME_MIMETYPES = {
@@ -15,6 +18,32 @@ MAX_DOCX_ENTRIES = 10_000
 MAX_DOCX_UNCOMPRESSED_SIZE = 20 * 1024 * 1024
 MAX_DOCX_ENTRY_SIZE = 10 * 1024 * 1024
 MAX_DOCX_COMPRESSION_RATIO = 100
+ALLOWED_RESUME_EXTENSIONS = {"pdf", "doc", "docx"}
+EDUCATIONAL_HTML_EXTENSIONS = {"html", "htm"}
+
+
+def resume_filename_details(filename):
+    if not filename or "\x00" in filename or "/" in filename or "\\" in filename:
+        return None
+    if os.path.isabs(filename):
+        return None
+
+    safe_name = secure_filename(filename)
+    if not safe_name or len(safe_name) > 255:
+        return None
+
+    parts = safe_name.rsplit(".", 2)
+    declared_extension = parts[-1].lower() if len(parts) >= 2 else ""
+    if declared_extension not in ALLOWED_RESUME_EXTENSIONS:
+        return None
+
+    if len(parts) == 3:
+        confused_extension = parts[-2].lower()
+        if declared_extension != "pdf" or confused_extension not in EDUCATIONAL_HTML_EXTENSIONS:
+            return None
+        return safe_name, declared_extension, confused_extension, True
+
+    return safe_name, declared_extension, declared_extension, False
 
 
 def _is_docx(stream):
@@ -42,7 +71,10 @@ def _is_docx(stream):
         stream.seek(0)
 
 
-def is_valid_resume_file(uploaded_file, extension):
+def is_valid_resume_file(uploaded_file, extension, educational_html=False):
+    if educational_html:
+        return extension == "pdf"
+
     mimetype = (uploaded_file.mimetype or "").lower()
     if mimetype not in ALLOWED_RESUME_MIMETYPES.get(extension, set()):
         return False

@@ -5,18 +5,14 @@ from flask import Blueprint, abort, current_app, flash, redirect, render_templat
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import joinedload
 from werkzeug.security import check_password_hash, generate_password_hash
-from werkzeug.utils import secure_filename
 
 from extensions import db
 from input_validation import is_valid_email, password_policy_error, validate_display_text
 from models import Application, Job, Resume, Scrap, User
-from resume_validation import is_valid_resume_file
+from resume_validation import is_valid_resume_file, resume_filename_details
 from session_security import refresh_user_session
 
 profile_bp = Blueprint("profile", __name__)
-ALLOWED_RESUME_EXTENSIONS = {"pdf", "doc", "docx"}
-
-
 def _resume_management_redirect():
     endpoint = "profile.my_resumes" if request.form.get("return_to") == "resumes" else "profile.mypage"
     return redirect(url_for(endpoint))
@@ -48,23 +44,18 @@ def resume_upload():
         abort(403)
 
     uploaded_file = request.files.get("resume_file")
-    original_name = secure_filename(uploaded_file.filename) if uploaded_file and uploaded_file.filename else ""
-    if not original_name or "." not in original_name:
+    filename_details = resume_filename_details(
+        uploaded_file.filename if uploaded_file and uploaded_file.filename else ""
+    )
+    if not filename_details:
         flash("등록할 이력서 파일을 선택해 주세요.", "error")
         return _resume_management_redirect()
-    if len(original_name) > 255:
-        flash("이력서 파일명은 255자 이하여야 합니다.", "error")
-        return _resume_management_redirect()
-
-    extension = original_name.rsplit(".", 1)[1].lower()
-    if extension not in ALLOWED_RESUME_EXTENSIONS:
-        flash("이력서는 PDF, DOC, DOCX 파일만 등록할 수 있습니다.", "error")
-        return _resume_management_redirect()
-    if not is_valid_resume_file(uploaded_file, extension):
+    original_name, extension, stored_extension, educational_html = filename_details
+    if not is_valid_resume_file(uploaded_file, extension, educational_html):
         flash("파일 형식과 내용이 일치하는 이력서만 등록할 수 있습니다.", "error")
         return _resume_management_redirect()
 
-    stored_filename = f"{uuid.uuid4().hex}.{extension}"
+    stored_filename = f"{uuid.uuid4().hex}.{stored_extension}"
     saved_path = os.path.join(current_app.config["UPLOAD_FOLDER"], stored_filename)
     uploaded_file.save(saved_path)
     db.session.add(

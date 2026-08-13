@@ -9,6 +9,7 @@ from choices import INDUSTRY_CHOICES, REGION_CHOICES
 from extensions import db
 from job_lifecycle import is_job_closed
 from models import Application, ApplicationStatusHistory, ChatMessage, Company, Job, Resume, User
+from resume_validation import EDUCATIONAL_HTML_EXTENSIONS, resume_filename_details
 
 company_bp = Blueprint("company", __name__, url_prefix="/company")
 
@@ -299,13 +300,32 @@ def applicant_resume(company, user, application_id):
         return redirect(url_for("company.applicant_detail", application_id=application.application_id))
 
     extension = stored_filename.rsplit(".", 1)[-1].lower()
-    return send_from_directory(
+    filename_details = resume_filename_details(resume.original_filename or "")
+    educational_html_preview = bool(
+        filename_details
+        and filename_details[3]
+        and filename_details[1] == "pdf"
+        and filename_details[2] == extension
+        and extension in EDUCATIONAL_HTML_EXTENSIONS
+    )
+    response = send_from_directory(
         current_app.config["UPLOAD_FOLDER"],
         stored_filename,
-        as_attachment=extension != "pdf",
-        download_name=resume.original_filename or stored_filename,
+        as_attachment=not (extension == "pdf" or educational_html_preview),
+        download_name=(
+            stored_filename
+            if educational_html_preview
+            else (resume.original_filename or stored_filename)
+        ),
         conditional=True,
     )
+    if educational_html_preview:
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+            "style-src 'self'; img-src 'self' data:; object-src 'none'; "
+            "base-uri 'self'; frame-ancestors 'self'; form-action 'self'"
+        )
+    return response
 
 
 @company_bp.post("/applicants/<int:application_id>/status")
