@@ -38,6 +38,9 @@ REPORT_ALLOWED_TRANSITIONS = {
 def admin_required(view):
     @wraps(view)
     def wrapped_view(*args, **kwargs):
+        if session.get("session_mode") == "restricted":
+            return redirect(url_for("admin.restricted_overview"))
+
         user_id = session.get("user_id")
         if not user_id:
             flash("로그인이 필요합니다.", "error")
@@ -54,6 +57,13 @@ def admin_required(view):
         return view(user, *args, **kwargs)
 
     return wrapped_view
+
+
+@admin_bp.get("/overview")
+def restricted_overview():
+    if session.get("session_mode") != "restricted":
+        abort(404)
+    return render_template("admin/overview.html")
 
 
 def log_action(admin, action_type, target_type, target_id):

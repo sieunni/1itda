@@ -1,4 +1,5 @@
 import atexit
+import base64
 import io
 import os
 import re
@@ -327,6 +328,111 @@ class SecurityAndJobFeatureTest(unittest.TestCase):
         with app.app_context():
             throttle = LoginThrottle.query.one()
             self.assertIsNotNone(throttle.locked_until)
+
+    def test_normal_company_and_admin_logins_keep_their_real_access(self):
+        company_login = self.client.post(
+            "/login",
+            data={"email": "company@example.com", "password": "company-password"},
+        )
+        self.assertEqual(company_login.status_code, 302)
+        self.assertEqual(self.client.get("/company/jobs").status_code, 200)
+
+        self.client.post("/logout")
+        admin_login = self.client.post(
+            "/login",
+            data={"email": "admin@example.com", "password": "admin-password"},
+        )
+        self.assertEqual(admin_login.status_code, 302)
+        self.assertEqual(self.client.get("/admin/").status_code, 200)
+        with self.client.session_transaction() as login_session:
+            self.assertNotIn("session_mode", login_session)
+
+    def test_restricted_login_context_blocks_every_real_admin_route(self):
+        response = self.client.post(
+            "/login",
+            data={"email": "user@example.com", "password": "' or '1'='1"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/admin/overview", response.headers["Location"])
+        with self.client.session_transaction() as access_session:
+            self.assertEqual(access_session.get("session_mode"), "restricted")
+            self.assertNotIn("user_id", access_session)
+
+        overview = self.client.get("/admin/overview")
+        self.assertEqual(overview.status_code, 200)
+        self.assertIn(b"1,284", overview.data)
+        self.assertNotIn(b"user@example.com", overview.data)
+
+        real_admin_paths = (
+            ("get", "/admin/"),
+            ("get", "/admin/users"),
+            ("post", f'/admin/users/{self.ids["user"]}/toggle'),
+            ("get", "/admin/jobs"),
+            ("post", f'/admin/jobs/{self.ids["active"]}/block'),
+            ("get", "/admin/reports"),
+            ("get", "/admin/reports/jobs"),
+            ("get", "/admin/reports/reviews"),
+            ("get", "/admin/logs"),
+        )
+        for method, path in real_admin_paths:
+            with self.subTest(path=path):
+                blocked = getattr(self.client, method)(path)
+                self.assertEqual(blocked.status_code, 302)
+                self.assertIn("/admin/overview", blocked.headers["Location"])
+
+        with app.app_context():
+            self.assertTrue(db.session.get(User, self.ids["user"]).is_active)
+            self.assertEqual(db.session.get(Job, self.ids["active"]).status, "approved")
+
+    def test_admin_overview_search_uses_text_content_and_never_executes_markup(self):
+        self.client.post(
+            "/login",
+            data={"email": "user@example.com", "password": "' or '1'='1"},
+        )
+        html = self.client.get("/admin/overview").get_data(as_text=True)
+        with open(
+            os.path.join(os.path.dirname(__file__), "..", "static", "js", "admin-overview.js"),
+            encoding="utf-8",
+        ) as script_file:
+            script = script_file.read()
+
+        self.assertNotIn("|safe", html)
+        self.assertNotIn("innerHTML", html)
+        self.assertNotIn("innerHTML", script)
+        self.assertIn("result.textContent", script)
+        self.assertIn('.includes("<script")', script)
+        encoded_message = "7Z6ZIOyGjeyVmOyngD/jhYvjhYvjhYs="
+        self.assertIn(encoded_message, script)
+        expected_message = "\ud799 \uc18d\uc558\uc9c0?\u314b\u314b\u314b"
+        self.assertEqual(base64.b64decode(encoded_message).decode("utf-8"), expected_message)
+        self.assertNotIn("document.domain", html)
+        self.assertNotIn("onerror", html)
+
+    def test_login_context_rejects_union_comments_and_stacked_queries(self):
+        for payload in (
+            "' UNION SELECT 1 --",
+            "' or '1'='1' --",
+            "' or '1'='1'; DELETE FROM users; --",
+        ):
+            with self.subTest(payload=payload):
+                response = self.client.post(
+                    "/login", data={"email": "user@example.com", "password": payload}
+                )
+                self.assertEqual(response.status_code, 401)
+                with self.client.session_transaction() as login_session:
+                    self.assertNotIn("session_mode", login_session)
+
+        with app.app_context():
+            self.assertEqual(User.query.count(), 3)
+
+    def test_login_email_is_parameterized_and_cannot_trigger_restricted_mode(self):
+        response = self.client.post(
+            "/login",
+            data={"email": "' or '1'='1", "password": "irrelevant"},
+        )
+        self.assertEqual(response.status_code, 401)
+        with self.client.session_transaction() as login_session:
+            self.assertNotIn("session_mode", login_session)
 
     def test_logged_in_user_can_change_password_from_mypage(self):
         self.set_session(self.ids["user"], "jobseeker")
