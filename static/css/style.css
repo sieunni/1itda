@@ -1193,7 +1193,23 @@ td.company-actions > * + * {
 }
 
 .profile-card { padding: 28px 22px; text-align: center; position: sticky; top: 24px; }
-.profile-avatar { display: grid; place-items: center; width: 72px; height: 72px; margin: 0 auto 16px; color: #fff; background: linear-gradient(135deg, #2563eb, #60a5fa); border-radius: 24px; font-size: 1.7rem; font-weight: 800; }
+.profile-avatar { position: relative; display: grid; place-items: center; width: 72px; height: 72px; margin: 0 auto 16px; padding: 0; overflow: hidden; color: #fff; background: linear-gradient(135deg, #2563eb, #60a5fa); border: 0; border-radius: 24px; font: inherit; font-size: 1.7rem; font-weight: 800; cursor: pointer; }
+.profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.profile-avatar-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; color: #fff; background: rgba(15, 23, 42, .68); opacity: 0; transition: opacity .15s; }
+.profile-avatar-overlay strong, .profile-avatar-overlay small { font-size: .64rem; line-height: 1.3; }
+.profile-avatar:hover .profile-avatar-overlay, .profile-avatar:focus-visible .profile-avatar-overlay { opacity: 1; }
+.profile-image-dialog { width: min(440px, calc(100% - 32px)); padding: 0; border: 0; border-radius: 14px; box-shadow: 0 24px 70px rgba(15, 23, 42, .25); }
+.profile-image-dialog::backdrop { background: rgba(15, 23, 42, .45); }
+.profile-image-form { display: flex; flex-direction: column; gap: 12px; padding: 24px; }
+.profile-image-form header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.profile-image-form h2 { margin: 0; }
+.profile-image-form label { font-size: .84rem; font-weight: 700; }
+.profile-image-form input { padding: 11px 13px; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; }
+.profile-image-form p { margin: 0; color: var(--color-muted); font-size: .76rem; }
+.profile-image-close { padding: 0; color: var(--color-muted); background: none; border: 0; font-size: 1.5rem; cursor: pointer; }
+.profile-image-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+.profile-image-actions .btn { width: auto; }
+.profile-image-delete { color: #b91c1c; }
 .profile-card h2 { margin: 0 0 6px; font-size: 1.15rem; }
 .profile-card > p { margin: 0; color: var(--color-muted); font-size: 0.85rem; overflow-wrap: anywhere; }
 .company-name { display: inline-block; margin-top: 10px; color: var(--color-primary); font-size: 0.85rem; font-weight: 700; }
@@ -1490,6 +1506,7 @@ a.stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(15,
 .chat-list__item { display: flex; align-items: center; gap: 16px; padding: 18px; background: #fff; border: 1px solid var(--color-border); border-radius: 14px; text-decoration: none; color: inherit; transition: border-color .15s, box-shadow .15s; }
 .chat-list__item:hover { border-color: #bfdbfe; box-shadow: 0 6px 18px rgba(15, 23, 42, .05); }
 .chat-list__avatar { display: grid; flex: 0 0 auto; place-items: center; width: 46px; height: 46px; color: #fff; background: linear-gradient(135deg, #2563eb, #60a5fa); border-radius: 14px; font-weight: 800; }
+.chat-list__avatar.has-profile-image .chat-list__avatar-fallback { visibility: hidden; }
 .chat-list__body { min-width: 0; flex: 1; }
 .chat-list__topline { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .chat-list__topline strong { font-size: 1rem; }

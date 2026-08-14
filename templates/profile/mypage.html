@@ -15,7 +15,14 @@
 
   <div class="mypage-layout">
     <aside class="profile-card">
-      <div class="profile-avatar" aria-hidden="true">{{ (user.name or '1')[0] }}</div>
+      <button class="profile-avatar profile-avatar-trigger" type="button" aria-haspopup="dialog" aria-controls="profile-image-dialog">
+        {% if user.profile_image_url %}
+        <img src="{{ user.profile_image_url }}" alt="" referrerpolicy="no-referrer">
+        {% else %}
+        <span class="profile-avatar-fallback" aria-hidden="true">{{ (user.name or '1')[0] }}</span>
+        {% endif %}
+        <span class="profile-avatar-overlay"><strong>프로필 이미지</strong><small>{{ '변경하기' if user.profile_image_url else '추가하기' }}</small></span>
+      </button>
       <h2>{{ user.name or '이름 미등록' }}</h2>
       <p>{{ user.email }}</p>
       {% if user.role == 'company' and user.company %}
@@ -32,6 +39,21 @@
         <a class="withdraw-link" href="{{ url_for('profile.withdraw') }}">회원 탈퇴</a>
       </div>
     </aside>
+
+    <dialog class="profile-image-dialog" id="profile-image-dialog">
+      <form method="post" action="{{ url_for('profile.update_profile_image') }}" class="profile-image-form">
+        {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+        <header><h2>프로필 이미지</h2><button class="profile-image-close" type="button" aria-label="닫기">×</button></header>
+        <label for="profile_image_url">프로필 이미지 URL</label>
+        <input id="profile_image_url" name="profile_image_url" value="{{ user.profile_image_url or '' }}" maxlength="1000" placeholder="https://example.com/avatar.jpg">
+        <p>이미지 파일을 직접 가리키는 URL을 입력해 주세요.</p>
+        <div class="profile-image-actions">
+          <button class="btn btn-primary" type="submit" name="action" value="save">저장</button>
+          {% if user.profile_image_url %}<button class="btn btn-outline profile-image-delete" type="submit" name="action" value="delete">삭제</button>{% endif %}
+          <button class="btn btn-outline profile-image-cancel" type="button">취소</button>
+        </div>
+      </form>
+    </dialog>
 
     <div class="mypage-content">
       <section class="mypage-stats" aria-label="활동 요약">
@@ -98,6 +120,16 @@
   function setEditPanel(open) { editPanel.hidden = !open; editToggle.setAttribute('aria-expanded', String(open)); if (open) editPanel.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
   editToggle.addEventListener('click', () => setEditPanel(editPanel.hidden));
   editCancel.addEventListener('click', () => setEditPanel(false));
+
+  const profileImageDialog = document.getElementById('profile-image-dialog');
+  const profileImageTrigger = document.querySelector('.profile-avatar-trigger');
+  const closeProfileImageDialog = () => profileImageDialog.close();
+  profileImageTrigger.addEventListener('click', () => profileImageDialog.showModal());
+  profileImageDialog.querySelector('.profile-image-close').addEventListener('click', closeProfileImageDialog);
+  profileImageDialog.querySelector('.profile-image-cancel').addEventListener('click', closeProfileImageDialog);
+  profileImageDialog.addEventListener('click', (event) => {
+    if (event.target === profileImageDialog) closeProfileImageDialog();
+  });
 
   const passwordPanel = document.querySelector('.password-panel');
   const passwordToggle = document.querySelector('.password-panel-toggle');

@@ -1,7 +1,8 @@
 import os
 import uuid
+import unicodedata
 
-from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_from_directory, session, url_for
+from flask import Blueprint, abort, current_app, flash, g, make_response, redirect, render_template, request, send_from_directory, session, url_for
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import joinedload
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -13,6 +14,32 @@ from resume_validation import is_valid_resume_file, resume_filename_details
 from session_security import refresh_user_session
 
 profile_bp = Blueprint("profile", __name__)
+MAX_PROFILE_IMAGE_URL_LENGTH = 1000
+
+
+def _render_mypage(**context):
+    response = make_response(render_template("profile/mypage.html", **context))
+    response.headers["Content-Security-Policy"] = (
+        f"default-src 'self'; script-src 'self' 'nonce-{g.csp_nonce}'; "
+        "style-src 'self'; img-src 'self' data: https:; "
+        "object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'"
+    )
+    return response
+
+
+def _profile_image_url_error(value):
+    if len(value) > MAX_PROFILE_IMAGE_URL_LENGTH:
+        return "프로필 이미지 URL은 1,000자 이하여야 합니다."
+    if any(unicodedata.category(character).startswith("C") for character in value):
+        return "프로필 이미지 URL에 사용할 수 없는 문자가 포함되어 있습니다."
+    lowered = value.casefold()
+    if "<" in value or ">" in value or "</style" in lowered or "<script" in lowered:
+        return "프로필 이미지 URL에 HTML 문법을 사용할 수 없습니다."
+    if "javascript:" in lowered:
+        return "프로필 이미지 URL에 JavaScript 주소를 사용할 수 없습니다."
+    return None
+
+
 def _resume_management_redirect():
     endpoint = "profile.my_resumes" if request.form.get("return_to") == "resumes" else "profile.mypage"
     return redirect(url_for(endpoint))
@@ -167,6 +194,37 @@ def my_resumes():
     return render_template("profile/resumes.html", resumes=resumes)
 
 
+@profile_bp.post("/mypage/profile-image")
+def update_profile_image():
+    user = _require_active_user()
+    if not user:
+        return redirect(url_for("auth.login"))
+    if user.role == "admin":
+        abort(403)
+
+    action = request.form.get("action", "save")
+    profile_image_url = (request.form.get("profile_image_url") or "").strip()
+    if action == "delete":
+        profile_image_url = ""
+    elif action != "save":
+        abort(400)
+
+    error = _profile_image_url_error(profile_image_url)
+    if error:
+        flash(error, "error")
+        return redirect(url_for("profile.mypage"))
+
+    user.profile_image_url = profile_image_url or None
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        flash("프로필 이미지를 변경하지 못했습니다. 잠시 후 다시 시도해 주세요.", "error")
+    else:
+        flash("프로필 이미지가 삭제되었습니다." if not profile_image_url else "프로필 이미지가 저장되었습니다.", "success")
+    return redirect(url_for("profile.mypage"))
+
+
 @profile_bp.route("/mypage", methods=["GET", "POST"])
 def mypage():
     user = _require_active_user()
@@ -228,7 +286,7 @@ def mypage():
             if user.company
             else 0,
         }
-        return render_template("profile/mypage.html", user=user, stats=stats, jobs=jobs)
+        return _render_mypage(user=user, stats=stats, jobs=jobs)
 
     applications = (
         Application.query.filter_by(user_id=user.user_id)
@@ -253,8 +311,7 @@ def mypage():
         "scraps": Scrap.query.filter_by(user_id=user.user_id).count(),
         "resumes": Resume.query.filter_by(user_id=user.user_id, is_deleted=False).count(),
     }
-    return render_template(
-        "profile/mypage.html",
+    return _render_mypage(
         user=user,
         stats=stats,
         applications=applications,

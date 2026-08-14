@@ -18,13 +18,25 @@
     {% for conversation in conversations %}
     {% set application = conversation.application %}
     {% set latest = conversation.latest_message %}
+    {% if conversation.peer and conversation.peer.profile_image_url %}
+    <style nonce="{{ csp_nonce }}">
+      #chat-avatar-{{ application.application_id }} {
+        background-image: url({{ conversation.peer.profile_image_url|safe }});
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+      }
+    </style>
+    {% endif %}
     <a class="chat-list__item" href="{{ url_for('chat.chat_thread', application_id=application.application_id) }}">
-      <div class="chat-list__avatar" aria-hidden="true">
+      <div class="chat-list__avatar{{ ' has-profile-image' if conversation.peer and conversation.peer.profile_image_url else '' }}" id="chat-avatar-{{ application.application_id }}" aria-hidden="true">
+        <span class="chat-list__avatar-fallback">
         {% if current_user.role == "company" %}
           {{ ((conversation.applicant.name if conversation.applicant and conversation.applicant.name else '?')[0]) }}
         {% else %}
           {{ ((application.job.company.company_name if application.job and application.job.company else '?')[0]) }}
         {% endif %}
+        </span>
       </div>
       <div class="chat-list__body">
         <div class="chat-list__topline">

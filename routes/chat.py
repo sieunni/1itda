@@ -1,4 +1,4 @@
-from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, flash, g, jsonify, make_response, redirect, render_template, request, session, url_for
 from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 
@@ -98,6 +98,11 @@ def chat_list():
             "application": application,
             "latest_message": latest_by_application.get(application.application_id),
             "applicant": applicants_by_id.get(application.user_id),
+            "peer": (
+                applicants_by_id.get(application.user_id)
+                if user.role == "company"
+                else (application.job.company.owner if application.job and application.job.company else None)
+            ),
         }
         for application in applications
     ]
@@ -106,7 +111,13 @@ def chat_list():
         reverse=True,
     )
 
-    return render_template("chat/list.html", conversations=conversations)
+    response = make_response(render_template("chat/list.html", conversations=conversations))
+    response.headers["Content-Security-Policy"] = (
+        f"default-src 'self'; script-src 'self' 'nonce-{g.csp_nonce}'; "
+        f"style-src 'self' 'nonce-{g.csp_nonce}'; img-src 'self' data: https:; "
+        "object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'"
+    )
+    return response
 
 
 @chat_bp.route("/applications/<int:application_id>/chat")

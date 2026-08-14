@@ -24,6 +24,11 @@ from session_security import auth_fingerprint, is_session_fresh
 def ensure_schema_compatibility():
     """Apply small, data-preserving schema updates for existing SQLite databases."""
     inspector = inspect(db.engine)
+    user_columns = {column["name"] for column in inspector.get_columns("users")}
+    if "profile_image_url" not in user_columns:
+        db.session.execute(text("ALTER TABLE users ADD COLUMN profile_image_url VARCHAR(1000)"))
+        db.session.commit()
+
     report_columns = {column["name"] for column in inspector.get_columns("reports")}
     if "reason_category" not in report_columns:
         db.session.execute(text("ALTER TABLE reports ADD COLUMN reason_category VARCHAR(30)"))
