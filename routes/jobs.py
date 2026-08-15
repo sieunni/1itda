@@ -236,8 +236,16 @@ def job_detail(job_id):
     is_preview = not is_public and not is_applicant
 
     if job.status == "approved":
-        viewed_job_ids = set(session.get("viewed_job_ids", []))
-        if job.job_id not in viewed_job_ids:
+        client_ip = (
+            request.headers.get("X-Forwarded-For")
+            or request.remote_addr
+            or "unknown"
+        ).split(",", 1)[0].strip()
+        view_key = f"{job.job_id}:{client_ip}"
+        viewed_job_ids = {str(item) for item in session.get("viewed_job_ids", [])}
+        if view_key not in viewed_job_ids:
+            # Increment in the database so simultaneous first views do not
+            # overwrite one another with the same value.
             db.session.execute(
                 update(Job)
                 .where(Job.job_id == job.job_id)
@@ -245,7 +253,7 @@ def job_detail(job_id):
             )
             db.session.commit()
             db.session.refresh(job)
-            viewed_job_ids.add(job.job_id)
+            viewed_job_ids.add(view_key)
             session["viewed_job_ids"] = sorted(viewed_job_ids)[-200:]
 
     is_scrapped = False
