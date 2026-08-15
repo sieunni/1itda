@@ -17,7 +17,7 @@
     <a class="admin-stat-card" href="{{ url_for('admin.job_reports', status='pending') }}">
       <span class="admin-stat-label">공고 신고 관리</span>
       <strong class="admin-stat-value">{{ job_report_counts.pending }}</strong>
-      <small>전체 {{ job_report_counts.total }}건 · 차단 완료 {{ job_report_counts.reviewed }}건</small>
+      <small>전체 {{ job_report_counts.total }}건 · 차단 완료 {{ job_report_counts.blocked }}건</small>
     </a>
     <a class="admin-stat-card" href="{{ url_for('admin.review_reports', status='pending') }}">
       <span class="admin-stat-label">리뷰 신고 관리</span>

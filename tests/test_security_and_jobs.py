@@ -1167,7 +1167,7 @@ class SecurityAndJobFeatureTest(unittest.TestCase):
 
         admin_client.post(
             f"/admin/reports/jobs/{report_id}/resolve",
-            data={"decision": "reviewed"},
+            data={"decision": "block"},
         )
         with app.app_context():
             self.assertEqual(db.session.get(Job, self.ids["active"]).status, "blocked")

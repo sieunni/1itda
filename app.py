@@ -88,6 +88,14 @@ def ensure_schema_compatibility():
     if "reason_category" not in report_columns:
         db.session.execute(text("ALTER TABLE reports ADD COLUMN reason_category VARCHAR(30)"))
         db.session.commit()
+    db.session.execute(
+        text(
+            "UPDATE reports "
+            "SET status = 'blocked' "
+            "WHERE target_type = 'job' AND status = 'reviewed'"
+        )
+    )
+    db.session.commit()
 
     review_columns = {column["name"] for column in inspector.get_columns("reviews")}
     if "is_hidden" not in review_columns:
