@@ -116,8 +116,8 @@ def validate_review_form(form):
         rating = int(rating_text)
     except (TypeError, ValueError):
         rating = None
-    if rating not in range(1, 6):
-        errors.append("별점은 1~5 사이의 정수여야 합니다.")
+    if rating is None:
+        errors.append("별점을 선택해 주세요.")
     if not title:
         errors.append("리뷰 제목을 입력해 주세요.")
     elif len(title) > MAX_TITLE_LENGTH:

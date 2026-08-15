@@ -21,6 +21,61 @@ from routes.reviews import reviews_bp
 from session_security import auth_fingerprint, is_session_fresh
 
 
+def relax_review_rating_constraint():
+    if db.engine.dialect.name != "sqlite":
+        return
+
+    table_sql = db.session.execute(
+        text("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'reviews'")
+    ).scalar()
+    if not table_sql or "ck_review_rating" not in table_sql:
+        return
+
+    db.session.commit()
+    connection = db.engine.raw_connection()
+    cursor = connection.cursor()
+    try:
+        cursor.execute("PRAGMA foreign_keys=OFF")
+        cursor.execute(
+            """
+            CREATE TABLE reviews_relaxed (
+                review_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                company_id INTEGER NOT NULL,
+                rating INTEGER NOT NULL,
+                title VARCHAR(200) NOT NULL,
+                content TEXT NOT NULL,
+                is_hidden BOOLEAN NOT NULL DEFAULT 0,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL,
+                PRIMARY KEY (review_id),
+                FOREIGN KEY(user_id) REFERENCES users (user_id),
+                FOREIGN KEY(company_id) REFERENCES companies (company_id)
+            )
+            """
+        )
+        cursor.execute(
+            """
+            INSERT INTO reviews_relaxed (
+                review_id, user_id, company_id, rating, title, content,
+                is_hidden, created_at, updated_at
+            )
+            SELECT
+                review_id, user_id, company_id, rating, title, content,
+                is_hidden, created_at, updated_at
+            FROM reviews
+            """
+        )
+        cursor.execute("DROP TABLE reviews")
+        cursor.execute("ALTER TABLE reviews_relaxed RENAME TO reviews")
+        connection.commit()
+    finally:
+        cursor.execute("PRAGMA foreign_keys=ON")
+        connection.commit()
+        cursor.close()
+        connection.close()
+
+
 def ensure_schema_compatibility():
     """Apply small, data-preserving schema updates for existing SQLite databases."""
     inspector = inspect(db.engine)
@@ -40,6 +95,7 @@ def ensure_schema_compatibility():
             text("ALTER TABLE reviews ADD COLUMN is_hidden BOOLEAN NOT NULL DEFAULT 0")
         )
         db.session.commit()
+    relax_review_rating_constraint()
 
     job_columns = {column["name"] for column in inspector.get_columns("jobs")}
     if "updated_at" not in job_columns:

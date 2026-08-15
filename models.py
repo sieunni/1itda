@@ -46,9 +46,6 @@ class Company(db.Model):
 
 class Review(db.Model):
     __tablename__ = "reviews"
-    __table_args__ = (
-        db.CheckConstraint("rating >= 1 AND rating <= 5", name="ck_review_rating"),
-    )
 
     review_id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.user_id"), nullable=False)
