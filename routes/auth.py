@@ -23,8 +23,13 @@ AUTH_INPUT_RESTRICTIONS = ("union", "--", "/*", "*/", ";", "\x00")
 
 
 def _throttle_key(email):
-    remote_address = request.remote_addr or "unknown"
-    return hashlib.sha256(f"{email}|{remote_address}".encode()).hexdigest()
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    client_address = (
+        forwarded_for.split(",", 1)[0].strip()
+        if forwarded_for
+        else request.remote_addr
+    ) or "unknown"
+    return hashlib.sha256(f"{email}|{client_address}".encode()).hexdigest()
 
 
 def _get_throttle(email):

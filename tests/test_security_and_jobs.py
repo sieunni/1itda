@@ -329,6 +329,29 @@ class SecurityAndJobFeatureTest(unittest.TestCase):
             throttle = LoginThrottle.query.one()
             self.assertIsNotNone(throttle.locked_until)
 
+    def test_forwarded_for_rotation_splits_login_failure_throttles(self):
+        data = {"email": "user@example.com", "password": "wrong"}
+        for index in range(5):
+            response = self.client.post(
+                "/login",
+                data=data,
+                headers={"X-Forwarded-For": f"198.51.100.{index + 1}"},
+            )
+            self.assertEqual(response.status_code, 401)
+
+        with app.app_context():
+            throttles = LoginThrottle.query.order_by(LoginThrottle.throttle_id).all()
+            self.assertEqual(len(throttles), 5)
+            self.assertTrue(all(throttle.failed_attempts == 1 for throttle in throttles))
+            self.assertTrue(all(throttle.locked_until is None for throttle in throttles))
+
+        response = self.client.post(
+            "/login",
+            data={**data, "password": "old-password"},
+            headers={"X-Forwarded-For": "198.51.100.250"},
+        )
+        self.assertEqual(response.status_code, 302)
+
     def test_normal_company_and_admin_logins_keep_their_real_access(self):
         company_login = self.client.post(
             "/login",
