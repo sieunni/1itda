@@ -47,7 +47,7 @@
         <dl class="application-history__meta">
           <div><dt>지역</dt><dd>{{ application.job.region or '지역 미정' if application.job else '-' }}</dd></div>
           <div><dt>직무</dt><dd>{{ application.job.industry or '업종 미정' if application.job else '-' }}</dd></div>
-          <div><dt>제출 이력서</dt><dd>{% if application.resume_id %}<a class="application-resume-link" href="{{ url_for('profile.resume_preview', resume_id=application.resume_id) }}" target="_blank" rel="noopener">{{ application.resume_snapshot or '이력서 보기' }} ↗</a>{% else %}이력서 정보 없음{% endif %}</dd></div>
+          <div><dt>제출 이력서</dt><dd>{% if application.resume_id %}<a class="application-resume-link" href="{{ url_for('applications.application_resume_preview', application_id=application.application_id) }}" target="_blank" rel="noopener">{{ application.resume_snapshot or '이력서 보기' }} ↗</a>{% else %}이력서 정보 없음{% endif %}</dd></div>
         </dl>
       </div>
       <div class="application-history__actions">

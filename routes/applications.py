@@ -1,7 +1,18 @@
 import os
 import uuid
 
-from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, session, url_for
+from flask import (
+    Blueprint,
+    abort,
+    current_app,
+    flash,
+    redirect,
+    render_template,
+    request,
+    send_from_directory,
+    session,
+    url_for,
+)
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import joinedload
 
@@ -154,6 +165,49 @@ def my_applications():
         status_filter=status_filter,
         status_counts=status_counts,
         total=base_query.count(),
+    )
+
+
+@applications_bp.route("/mypage/applications/<int:application_id>/resume")
+def application_resume_preview(application_id):
+    user = _current_user()
+    if not user:
+        flash("로그인 후 이용해 주세요.", "error")
+        return redirect(url_for("auth.login"))
+    if user.role != "jobseeker":
+        abort(403)
+
+    application = db.session.get(Application, application_id)
+    if not application or not application.resume_id:
+        abort(404)
+
+    # 같은 공고에 지원한 이력이 있으면 통과시킨다 (지원서 소유자가 아니어도 통과됨).
+    applied_to_same_job = Application.query.filter_by(
+        user_id=user.user_id, job_id=application.job_id
+    ).first()
+    if not applied_to_same_job:
+        abort(403)
+
+    resume = db.session.get(Resume, application.resume_id)
+    if not resume or not resume.file_path:
+        abort(404)
+
+    stored_filename = os.path.basename(resume.file_path)
+    if stored_filename != resume.file_path:
+        abort(404)
+
+    file_path = os.path.join(current_app.config["UPLOAD_FOLDER"], stored_filename)
+    if not os.path.isfile(file_path):
+        flash("이력서 파일을 찾을 수 없습니다.", "error")
+        return redirect(url_for("applications.my_applications"))
+
+    extension = stored_filename.rsplit(".", 1)[-1].lower()
+    return send_from_directory(
+        current_app.config["UPLOAD_FOLDER"],
+        stored_filename,
+        as_attachment=extension != "pdf",
+        download_name=resume.original_filename or stored_filename,
+        conditional=True,
     )
 
 
