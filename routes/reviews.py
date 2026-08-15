@@ -1,6 +1,7 @@
+import re
 from functools import wraps
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, flash, make_response, redirect, render_template, request, session, url_for
 from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import IntegrityError
 
@@ -11,6 +12,15 @@ reviews_bp = Blueprint("reviews", __name__)
 MAX_TITLE_LENGTH = 200
 MAX_CONTENT_LENGTH = 10000
 MAX_REPORT_DESCRIPTION_LENGTH = 1000
+
+DANGEROUS_REVIEW_TAGS = ("script", "iframe", "object", "embed", "style", "img", "svg")
+
+
+def sanitize_review_content(content):
+    for tag in DANGEROUS_REVIEW_TAGS:
+        content = re.sub(rf"<\s*{tag}\b[^>]*>", "", content, flags=re.IGNORECASE)
+        content = re.sub(rf"<\s*/\s*{tag}\s*>", "", content, flags=re.IGNORECASE)
+    return content
 
 
 def active_companies_query():
@@ -117,7 +127,12 @@ def validate_review_form(form):
     elif len(content) > MAX_CONTENT_LENGTH:
         errors.append(f"리뷰 내용은 {MAX_CONTENT_LENGTH:,}자 이하여야 합니다.")
 
-    return {"company": company, "rating": rating, "title": title, "content": content}, errors
+    return {
+        "company": company,
+        "rating": rating,
+        "title": title,
+        "content": sanitize_review_content(content),
+    }, errors
 
 
 @reviews_bp.get("/reviews")
@@ -163,10 +178,17 @@ def review_detail(review_id):
     user_id = session.get("user_id")
     user = db.session.get(User, user_id) if user_id else None
     allow_hidden = bool(user and user.is_active and user.role == "admin")
-    return render_template(
-        "reviews/detail.html",
-        review=review_or_404(review_id, allow_hidden=allow_hidden),
+    response = make_response(
+        render_template(
+            "reviews/detail.html",
+            review=review_or_404(review_id, allow_hidden=allow_hidden),
+        )
     )
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'"
+    )
+    return response
 
 
 @reviews_bp.route("/reviews/<int:review_id>/report", methods=["GET", "POST"])
