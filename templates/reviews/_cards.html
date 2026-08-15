@@ -1,8 +1,9 @@
 {% if reviews %}
 <div class="review-list">
   {% for review in reviews %}
+  {% set display_rating = 5 if review.rating >= 5 else 1 if review.rating <= 1 else review.rating %}
   <a class="review-card" href="{{ url_for('reviews.review_detail', review_id=review.review_id) }}">
-    <div class="review-card__top"><strong>{{ review.company.company_name }}</strong><span class="review-stars" aria-label="별점 {{ review.rating }}점">{{ '★' * review.rating }}{{ '☆' * (5 - review.rating) }} <small>{{ review.rating }}.0</small></span></div>
+    <div class="review-card__top"><strong>{{ review.company.company_name }}</strong><span class="review-stars" aria-label="별점 {{ review.rating }}점">{{ '★' * display_rating }}{{ '☆' * (5 - display_rating) }} <small>{{ review.rating }}.0</small></span></div>
     <h2>{{ review.title }}</h2>
     <p>{{ review.content|truncate(140, true, '...') }}</p>
     <div class="review-meta"><span>{{ review.author.name or review.author.email }}</span><span>·</span><time datetime="{{ review.created_at.isoformat() }}">{{ review.created_at.strftime('%Y-%m-%d') }}</time></div>

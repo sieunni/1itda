@@ -11,7 +11,7 @@ atexit.register(shutil.rmtree, TEST_DIR, ignore_errors=True)
 os.environ["DATABASE_URL"] = "sqlite:///" + os.path.join(TEST_DIR, "test.db").replace("\\", "/")
 os.environ["SECRET_KEY"] = "review-test-secret-for-tests-only-123"
 
-from app import app
+from app import app, ensure_schema_compatibility
 from extensions import db
 from models import Company, Job, Report, Review, ReviewReport, User
 from session_security import auth_fingerprint
@@ -129,6 +129,34 @@ class ReviewFeatureTest(unittest.TestCase):
             404,
         )
 
+    def test_review_detail_requires_active_company_owner(self):
+        with app.app_context():
+            inactive_review = Review(
+                user_id=self.ids["author"],
+                company_id=self.ids["inactive_company"],
+                rating=4,
+                title="inactive company review",
+                content="not publicly visible",
+            )
+            admin_company_review = Review(
+                user_id=self.ids["author"],
+                company_id=self.ids["admin_company"],
+                rating=4,
+                title="admin-owned company review",
+                content="not publicly visible",
+            )
+            db.session.add_all([inactive_review, admin_company_review])
+            db.session.commit()
+            inactive_review_id = inactive_review.review_id
+            admin_company_review_id = admin_company_review.review_id
+
+        self.assertEqual(self.client.get(f"/reviews/{inactive_review_id}").status_code, 404)
+        self.assertEqual(self.client.get(f"/reviews/{admin_company_review_id}").status_code, 404)
+
+        self.login_as(self.ids["other"], "jobseeker")
+        self.assertEqual(self.client.get(f"/reviews/{inactive_review_id}").status_code, 404)
+        self.assertEqual(self.client.get(f"/reviews/{inactive_review_id}/report").status_code, 404)
+
     def test_jobseeker_create_detail_edit_delete(self):
         self.login_as(self.ids["author"], "jobseeker")
         response = self.client.post("/reviews/new", data={"company_id": self.ids["company"],
@@ -176,6 +204,32 @@ class ReviewFeatureTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"3.0", response.data)
         self.assertIn(str(review_id).encode(), response.data)
+
+    def test_review_star_display_is_clamped_but_values_remain_raw(self):
+        with app.app_context():
+            high_review = Review(user_id=self.ids["author"], company_id=self.ids["company"],
+                                 rating=1000, title="높은 별점", content="표시용 별은 최대치")
+            low_review = Review(user_id=self.ids["other"], company_id=self.ids["company"],
+                                rating=-1000, title="낮은 별점", content="표시용 별은 최소치")
+            db.session.add_all([high_review, low_review])
+            db.session.commit()
+            high_review_id = high_review.review_id
+            low_review_id = low_review.review_id
+
+        high_detail = self.client.get(f"/reviews/{high_review_id}")
+        self.assertEqual(high_detail.status_code, 200)
+        self.assertIn("★★★★★".encode(), high_detail.data)
+        self.assertNotIn("★★★★★★".encode(), high_detail.data)
+
+        low_detail = self.client.get(f"/reviews/{low_review_id}")
+        self.assertEqual(low_detail.status_code, 200)
+        self.assertIn("★☆☆☆☆".encode(), low_detail.data)
+
+        company_page = self.client.get(f"/companies/{self.ids['company']}/reviews")
+        self.assertEqual(company_page.status_code, 200)
+        self.assertIn(b"1000.0", company_page.data)
+        self.assertIn(b"-1000.0", company_page.data)
+        self.assertIn(b"0.0", company_page.data)
 
     def test_validation_rejects_invalid_input(self):
         self.login_as(self.ids["author"], "jobseeker")
@@ -394,7 +448,7 @@ class ReviewFeatureTest(unittest.TestCase):
 
         response = self.client.post(
             f"/admin/reports/jobs/{first_report_id}/resolve",
-            data={"decision": "reviewed"},
+            data={"decision": "block"},
         )
         self.assertEqual(response.status_code, 302)
         with app.app_context():
@@ -403,9 +457,9 @@ class ReviewFeatureTest(unittest.TestCase):
                 db.session.get(Report, first_report_id).status,
                 db.session.get(Report, second_report_id).status,
             }
-            self.assertEqual(statuses, {"reviewed"})
+            self.assertEqual(statuses, {"blocked"})
 
-        listing = self.client.get("/admin/reports/jobs?status=reviewed")
+        listing = self.client.get("/admin/reports/jobs?status=blocked")
         self.assertEqual(listing.status_code, 200)
         self.assertIn("차단 완료".encode(), listing.data)
 
@@ -417,7 +471,7 @@ class ReviewFeatureTest(unittest.TestCase):
         self.assertEqual(
             self.client.post(
                 f"/admin/reports/jobs/{report_id}/resolve",
-                data={"decision": "rejected"},
+                data={"decision": "reject"},
             ).status_code,
             302,
         )
@@ -436,6 +490,16 @@ class ReviewFeatureTest(unittest.TestCase):
         )
         with app.app_context():
             self.assertEqual(db.session.get(Report, report_id).status, "rejected")
+
+        self.assertEqual(
+            self.client.post(
+                f"/admin/reports/jobs/{report_id}/resolve",
+                data={"decision": "dismiss"},
+            ).status_code,
+            302,
+        )
+        with app.app_context():
+            self.assertEqual(db.session.get(Report, report_id).status, "dismissed")
 
     def test_job_report_can_be_dismissed_and_duplicate_report_policy_is_kept(self):
         job_id = self.create_job()
@@ -478,6 +542,26 @@ class ReviewFeatureTest(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         with app.app_context():
             self.assertEqual(db.session.get(Report, report_id).status, "pending")
+
+        legacy_response = self.client.post(
+            f"/admin/reports/jobs/{report_id}/resolve",
+            data={"decision": "reviewed"},
+        )
+        self.assertEqual(legacy_response.status_code, 302)
+        with app.app_context():
+            self.assertEqual(db.session.get(Report, report_id).status, "pending")
+
+    def test_legacy_reviewed_job_report_status_is_migrated_to_blocked(self):
+        job_id = self.create_job()
+        report_id = self.create_job_report(job_id)
+        with app.app_context():
+            report = db.session.get(Report, report_id)
+            report.status = "reviewed"
+            db.session.commit()
+
+            ensure_schema_compatibility()
+
+            self.assertEqual(db.session.get(Report, report_id).status, "blocked")
 
 
 if __name__ == "__main__":

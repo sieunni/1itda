@@ -3,7 +3,7 @@
 {% block content %}
 <section class="reviews-page">
   <a class="review-back" href="{{ url_for('reviews.review_list') }}">← 기업 리뷰 전체</a>
-  <header class="company-review-header"><div><span>COMPANY</span><h1>{{ company.company_name }}</h1></div><dl><div><dt>평균 별점</dt><dd>{% if average_rating is not none %}{{ '★' * (average_rating|round(0, 'floor')|int) }} <strong>{{ '%.1f'|format(average_rating) }}</strong>{% else %}<strong>-</strong>{% endif %}</dd></div><div><dt>리뷰</dt><dd><strong>{{ reviews|length }}</strong>개</dd></div></dl></header>
+  <header class="company-review-header"><div><span>COMPANY</span><h1>{{ company.company_name }}</h1></div><dl><div><dt>평균 별점</dt><dd>{% if average_rating is not none %}{% set average_stars = average_rating|round(0, 'floor')|int %}{% set display_average_stars = 5 if average_stars >= 5 else 1 if average_stars <= 1 else average_stars %}{{ '★' * display_average_stars }} <strong>{{ '%.1f'|format(average_rating) }}</strong>{% else %}<strong>-</strong>{% endif %}</dd></div><div><dt>리뷰</dt><dd><strong>{{ reviews|length }}</strong>개</dd></div></dl></header>
   {% include "reviews/_cards.html" %}
 </section>
 {% endblock %}

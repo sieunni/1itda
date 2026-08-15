@@ -75,13 +75,25 @@ def jobseeker_required(view):
     return wrapped_view
 
 
-def review_or_404(review_id, allow_hidden=False):
+def is_active_company_review(review):
+    owner = review.company.owner if review.company else None
+    return bool(owner and owner.role == "company" and owner.is_active)
+
+
+def review_or_404(review_id, allow_hidden=False, require_active_company=False):
     review = (
-        Review.query.options(joinedload(Review.author), joinedload(Review.company))
+        Review.query.options(
+            joinedload(Review.author),
+            joinedload(Review.company).joinedload(Company.owner),
+        )
         .filter(Review.review_id == review_id)
         .first()
     )
-    if review is None or (review.is_hidden and not allow_hidden):
+    if (
+        review is None
+        or (review.is_hidden and not allow_hidden)
+        or (require_active_company and not is_active_company_review(review))
+    ):
         abort(404)
     return review
 
@@ -116,8 +128,8 @@ def validate_review_form(form):
         rating = int(rating_text)
     except (TypeError, ValueError):
         rating = None
-    if rating not in range(1, 6):
-        errors.append("별점은 1~5 사이의 정수여야 합니다.")
+    if rating is None:
+        errors.append("별점을 선택해 주세요.")
     if not title:
         errors.append("리뷰 제목을 입력해 주세요.")
     elif len(title) > MAX_TITLE_LENGTH:
@@ -181,7 +193,11 @@ def review_detail(review_id):
     response = make_response(
         render_template(
             "reviews/detail.html",
-            review=review_or_404(review_id, allow_hidden=allow_hidden),
+            review=review_or_404(
+                review_id,
+                allow_hidden=allow_hidden,
+                require_active_company=not allow_hidden,
+            ),
         )
     )
     response.headers["Content-Security-Policy"] = (
@@ -194,7 +210,7 @@ def review_detail(review_id):
 @reviews_bp.route("/reviews/<int:review_id>/report", methods=["GET", "POST"])
 @login_required
 def review_report(user, review_id):
-    review = review_or_404(review_id)
+    review = review_or_404(review_id, require_active_company=True)
     if user.role == "admin":
         abort(403)
     if review.user_id == user.user_id:

@@ -21,7 +21,7 @@ from models import (
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
 JOB_STATUS_LABELS = {"pending": "승인 대기", "approved": "공개 중", "blocked": "차단", "closed": "마감"}
-REPORT_STATUS_LABELS = {"pending": "미처리", "reviewed": "차단 완료", "rejected": "반려", "dismissed": "기각"}
+REPORT_STATUS_LABELS = {"pending": "미처리", "blocked": "차단 완료", "rejected": "반려", "dismissed": "기각"}
 REPORT_FILTER_LABELS = {"": "전체", **REPORT_STATUS_LABELS}
 REVIEW_REPORT_STATUS_LABELS = {
     "pending": "미처리",
@@ -30,8 +30,8 @@ REVIEW_REPORT_STATUS_LABELS = {
 }
 REVIEW_REPORT_FILTER_LABELS = {"": "전체", **REVIEW_REPORT_STATUS_LABELS}
 REPORT_ALLOWED_TRANSITIONS = {
-    "pending": {"reviewed", "rejected", "dismissed"},
-    "rejected": {"reviewed", "dismissed"},
+    "pending": {"block", "reject", "dismiss"},
+    "rejected": {"block", "dismiss"},
 }
 
 
@@ -89,7 +89,7 @@ def _commit(success_message, error_message):
 
 
 def _report_status_class(status):
-    if status == "reviewed":
+    if status == "blocked":
         return "status-blocked"
     if status == "rejected":
         return "status-rejected"
@@ -486,9 +486,21 @@ def resolve_report(admin, report_id):
 
 
 @admin_bp.post("/reports/jobs/<int:report_id>/resolve")
-@admin_required
-def resolve_job_report(admin, report_id):
-    return _resolve_job_report(admin, report_id)
+def resolve_job_report(report_id):
+    user_id = session.get("user_id")
+    if not user_id:
+        flash("로그인이 필요합니다.", "error")
+        return redirect(url_for("auth.login"))
+
+    user = db.session.get(User, user_id)
+    if user is None:
+        session.pop("user_id", None)
+        flash("로그인이 필요합니다.", "error")
+        return redirect(url_for("auth.login"))
+    if not user.is_active:
+        abort(403)
+
+    return _resolve_job_report(user, report_id)
 
 
 def _resolve_job_report(admin, report_id):
@@ -503,7 +515,13 @@ def _resolve_job_report(admin, report_id):
         return redirect(url_for("admin.job_reports", status=request.args.get("status", "pending")))
 
     success_message = "신고를 처리했습니다."
-    if decision == "reviewed":
+    report_status = {
+        "block": "blocked",
+        "reject": "rejected",
+        "dismiss": "dismissed",
+    }[decision]
+
+    if decision == "block":
         reported_job = db.session.get(Job, report.target_id)
         if reported_job is not None:
             if reported_job.status == "closed":
@@ -520,14 +538,14 @@ def _resolve_job_report(admin, report_id):
                 status="pending",
             ).all()
             for related_report in related_reports:
-                related_report.status = "reviewed"
+                related_report.status = "blocked"
         else:
             success_message = "신고를 차단 완료로 처리했습니다. 대상 공고는 확인할 수 없습니다."
 
-    report.status = decision
-    if decision == "rejected":
+    report.status = report_status
+    if decision == "reject":
         success_message = "신고를 반려했습니다."
-    elif decision == "dismissed":
+    elif decision == "dismiss":
         success_message = "신고를 기각했습니다."
 
     log_action(admin, f"report_{decision}", report.target_type, report.target_id)
