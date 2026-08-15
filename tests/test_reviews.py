@@ -129,6 +129,34 @@ class ReviewFeatureTest(unittest.TestCase):
             404,
         )
 
+    def test_review_detail_requires_active_company_owner(self):
+        with app.app_context():
+            inactive_review = Review(
+                user_id=self.ids["author"],
+                company_id=self.ids["inactive_company"],
+                rating=4,
+                title="inactive company review",
+                content="not publicly visible",
+            )
+            admin_company_review = Review(
+                user_id=self.ids["author"],
+                company_id=self.ids["admin_company"],
+                rating=4,
+                title="admin-owned company review",
+                content="not publicly visible",
+            )
+            db.session.add_all([inactive_review, admin_company_review])
+            db.session.commit()
+            inactive_review_id = inactive_review.review_id
+            admin_company_review_id = admin_company_review.review_id
+
+        self.assertEqual(self.client.get(f"/reviews/{inactive_review_id}").status_code, 404)
+        self.assertEqual(self.client.get(f"/reviews/{admin_company_review_id}").status_code, 404)
+
+        self.login_as(self.ids["other"], "jobseeker")
+        self.assertEqual(self.client.get(f"/reviews/{inactive_review_id}").status_code, 404)
+        self.assertEqual(self.client.get(f"/reviews/{inactive_review_id}/report").status_code, 404)
+
     def test_jobseeker_create_detail_edit_delete(self):
         self.login_as(self.ids["author"], "jobseeker")
         response = self.client.post("/reviews/new", data={"company_id": self.ids["company"],
