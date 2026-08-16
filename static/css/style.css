@@ -1538,3 +1538,15 @@ a.stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(15,
   font: inherit;
   padding: 0;
 }
+
+.resume-pdfjs-page { display: flex; flex-direction: column; gap: 20px; }
+.resume-pdfjs-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
+.resume-pdfjs-header h1 { margin: 7px 0; font-size: 1.6rem; }
+.resume-pdfjs-header p { margin: 0; color: var(--color-muted); }
+.resume-pdfjs-stage { padding: 20px; overflow: auto; background: #334155; border-radius: 14px; text-align: center; }
+.resume-pdfjs-stage p { margin: 0 0 14px; color: #e2e8f0; }
+.resume-pdfjs-stage canvas { max-width: 100%; height: auto; background: #fff; box-shadow: 0 10px 30px rgba(15, 23, 42, .3); }
+
+@media (max-width: 700px) {
+  .resume-pdfjs-header { align-items: flex-start; flex-direction: column; }
+}

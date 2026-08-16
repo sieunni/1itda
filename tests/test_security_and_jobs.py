@@ -937,6 +937,120 @@ class SecurityAndJobFeatureTest(unittest.TestCase):
             finally:
                 app.config["UPLOAD_FOLDER"] = original_upload_folder
 
+    def test_cve_2024_4367_pdf_runs_through_vulnerable_company_preview(self):
+        poc_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            "security_lab",
+            "cve-2024-4367-resume.pdf",
+        )
+        with open(poc_path, "rb") as poc_file:
+            payload = poc_file.read()
+
+        self.assertTrue(payload.startswith(b"%PDF-"))
+        self.assertIn(b"/Subtype /Type1", payload)
+        self.assertIn(b"/FontMatrix", payload)
+        self.assertNotIn(b"/OpenAction", payload)
+        self.assertNotIn(b"/S /JavaScript", payload)
+
+        original_upload_folder = app.config["UPLOAD_FOLDER"]
+        with tempfile.TemporaryDirectory(prefix="1itda-pdfjs-cve-") as upload_dir:
+            app.config["UPLOAD_FOLDER"] = upload_dir
+            try:
+                self.set_session(self.ids["user"], "jobseeker")
+                upload = self.client.post(
+                    "/mypage/resumes/upload",
+                    data={
+                        "resume_file": (
+                            io.BytesIO(payload),
+                            "security_resume.pdf",
+                            "application/pdf",
+                        )
+                    },
+                    content_type="multipart/form-data",
+                )
+                self.assertEqual(upload.status_code, 302)
+
+                with app.app_context():
+                    resume = Resume.query.filter_by(
+                        original_filename="security_resume.pdf"
+                    ).one()
+                    resume_id = resume.resume_id
+
+                application_response = self.client.post(
+                    f'/jobs/{self.ids["active"]}/apply',
+                    data={"resume_id": str(resume_id)},
+                )
+                self.assertEqual(application_response.status_code, 302)
+
+                with app.app_context():
+                    application = Application.query.filter_by(
+                        user_id=self.ids["user"], job_id=self.ids["active"]
+                    ).one()
+                    application_id = application.application_id
+
+                self.set_session(self.ids["company_user"], "company")
+                preview = self.client.get(
+                    f"/company/applicants/{application_id}/resume"
+                )
+                self.assertEqual(preview.status_code, 200)
+                self.assertIn(b"PDF.js 4.1.392", preview.data)
+                self.assertIn(b"pdfjs-resume-viewer.mjs", preview.data)
+                self.assertIn(
+                    "'unsafe-eval'",
+                    preview.headers["Content-Security-Policy"],
+                )
+                preview.close()
+
+                pdf_file = self.client.get(
+                    f"/company/applicants/{application_id}/resume/file"
+                )
+                self.assertEqual(pdf_file.status_code, 200)
+                self.assertEqual(pdf_file.mimetype, "application/pdf")
+                self.assertEqual(pdf_file.data, payload)
+                pdf_file.close()
+
+                viewer_script_response = self.client.get(
+                    "/static/js/pdfjs-resume-viewer.mjs"
+                )
+                viewer_script = viewer_script_response.get_data(as_text=True)
+                viewer_script_response.close()
+                self.assertIn("isEvalSupported: true", viewer_script)
+                self.assertIn("pdfjs-4.1.392", viewer_script)
+
+                with app.app_context():
+                    other_user = User(
+                        email="pdf-other-company@example.com",
+                        password_hash=generate_password_hash("other-company-password"),
+                        role="company",
+                        name="PDF other company",
+                    )
+                    db.session.add(other_user)
+                    db.session.flush()
+                    db.session.add(
+                        Company(
+                            user_id=other_user.user_id,
+                            company_name="PDF other company",
+                        )
+                    )
+                    db.session.commit()
+                    other_user_id = other_user.user_id
+
+                self.set_session(other_user_id, "company")
+                self.assertEqual(
+                    self.client.get(
+                        f"/company/applicants/{application_id}/resume"
+                    ).status_code,
+                    404,
+                )
+                self.assertEqual(
+                    self.client.get(
+                        f"/company/applicants/{application_id}/resume/file"
+                    ).status_code,
+                    404,
+                )
+            finally:
+                app.config["UPLOAD_FOLDER"] = original_upload_folder
+
     def test_docx_validation_requires_word_document_structure(self):
         fake_zip = io.BytesIO()
         with zipfile.ZipFile(fake_zip, "w") as archive:

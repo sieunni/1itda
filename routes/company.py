@@ -2,7 +2,7 @@ import os
 from datetime import date, datetime
 from functools import wraps
 
-from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_from_directory, session, url_for
+from flask import Blueprint, abort, current_app, flash, g, make_response, redirect, render_template, request, send_from_directory, session, url_for
 from sqlalchemy.exc import SQLAlchemyError
 
 from choices import INDUSTRY_CHOICES, REGION_CHOICES
@@ -308,6 +308,25 @@ def applicant_resume(company, user, application_id):
         and filename_details[2] == extension
         and extension in EDUCATIONAL_HTML_EXTENSIONS
     )
+    if extension == "pdf":
+        response = make_response(
+            render_template(
+                "company/resume_pdfjs_viewer.html",
+                application=application,
+                resume=resume,
+                pdf_url=url_for(
+                    "company.applicant_resume_file",
+                    application_id=application.application_id,
+                ),
+            )
+        )
+        response.headers["Content-Security-Policy"] = (
+            f"default-src 'self'; script-src 'self' 'unsafe-eval' 'nonce-{g.csp_nonce}'; "
+            "worker-src 'self' blob:; style-src 'self'; img-src 'self' data: blob:; "
+            "connect-src 'self'; object-src 'none'; base-uri 'self'; "
+            "frame-ancestors 'self'; form-action 'self'"
+        )
+        return response
     response = send_from_directory(
         current_app.config["UPLOAD_FOLDER"],
         stored_filename,
@@ -326,6 +345,30 @@ def applicant_resume(company, user, application_id):
             "base-uri 'self'; frame-ancestors 'self'; form-action 'self'"
         )
     return response
+
+
+@company_bp.route("/applicants/<int:application_id>/resume/file")
+@company_required
+def applicant_resume_file(company, user, application_id):
+    application = owned_application_or_404(company, application_id)
+    resume = db.session.get(Resume, application.resume_id) if application.resume_id else None
+    if not resume or not resume.file_path:
+        abort(404)
+
+    stored_filename = os.path.basename(resume.file_path)
+    if stored_filename != resume.file_path or not stored_filename.lower().endswith(".pdf"):
+        abort(404)
+    if not os.path.isfile(os.path.join(current_app.config["UPLOAD_FOLDER"], stored_filename)):
+        abort(404)
+
+    return send_from_directory(
+        current_app.config["UPLOAD_FOLDER"],
+        stored_filename,
+        mimetype="application/pdf",
+        as_attachment=False,
+        download_name=resume.original_filename or stored_filename,
+        conditional=True,
+    )
 
 
 @company_bp.post("/applicants/<int:application_id>/status")

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}이력서 미리보기 - 1ITDA{% endblock %}
+
+{% block content %}
+<section class="resume-pdfjs-page" data-pdf-url="{{ pdf_url }}">
+  <div class="resume-pdfjs-header">
+    <div><p class="company-eyebrow">RESUME PREVIEW</p><h1>{{ application.resume_snapshot or resume.original_filename }}</h1><p>PDF.js 4.1.392 미리보기</p></div>
+    <a class="btn btn-outline" href="{{ pdf_url }}" download="{{ resume.original_filename or 'resume.pdf' }}">원본 다운로드</a>
+  </div>
+  <div class="resume-pdfjs-stage">
+    <p id="pdfjs-status">이력서를 불러오는 중입니다.</p>
+    <canvas id="pdfjs-canvas"></canvas>
+  </div>
+</section>
+<script type="module" src="{{ url_for('static', filename='js/pdfjs-resume-viewer.mjs') }}"></script>
+{% endblock %}
