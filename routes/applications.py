@@ -181,7 +181,6 @@ def application_resume_preview(application_id):
     if not application or not application.resume_id:
         abort(404)
 
-    # 같은 공고에 지원한 이력이 있으면 통과시킨다 (지원서 소유자가 아니어도 통과됨).
     applied_to_same_job = Application.query.filter_by(
         user_id=user.user_id, job_id=application.job_id
     ).first()

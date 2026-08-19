@@ -9,12 +9,6 @@ def is_job_closed(job):
 
 
 def close_expired_jobs():
-    """Close only public jobs whose deadline has passed.
-
-    Pending jobs have never been approved for public viewing.  Changing those to
-    ``closed`` would lose that distinction and could make their detail page
-    public, so they intentionally remain pending until reviewed or edited.
-    """
     updated = (
         Job.query.filter(
             Job.status == "approved",

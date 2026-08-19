@@ -77,7 +77,6 @@ def relax_review_rating_constraint():
 
 
 def ensure_schema_compatibility():
-    """Apply small, data-preserving schema updates for existing SQLite databases."""
     inspector = inspect(db.engine)
     user_columns = {column["name"] for column in inspector.get_columns("users")}
     if "profile_image_url" not in user_columns:
@@ -274,7 +273,6 @@ def create_app():
 
     @app.cli.command("close-expired-jobs")
     def close_expired_jobs_command():
-        """Close jobs whose deadline has passed; safe to call from cron."""
         count = close_expired_jobs()
         click.echo(f"Closed {count} expired job(s).")
 

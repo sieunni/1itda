@@ -244,8 +244,6 @@ def job_detail(job_id):
         view_key = f"{job.job_id}:{client_ip}"
         viewed_job_ids = {str(item) for item in session.get("viewed_job_ids", [])}
         if view_key not in viewed_job_ids:
-            # Increment in the database so simultaneous first views do not
-            # overwrite one another with the same value.
             db.session.execute(
                 update(Job)
                 .where(Job.job_id == job.job_id)

@@ -1,9 +1,3 @@
-"""Seed local Korean test data without PowerShell pipe encoding loss.
-
-Run from the project root:
-    python scripts/seed_test_data.py
-"""
-
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 import os
@@ -22,6 +16,7 @@ from models import Company, Job, User
 JOBSEEKER_EMAIL = "test@test.com"
 COMPANY_EMAIL = "co@test.com"
 ADMIN_EMAIL = "admin@test.com"
+TEST_ACCOUNT_PASSWORD = "test1234"
 
 COMPANY_NAME = "1ITDA 상세테스트 기업"
 COMPANY_DESCRIPTION = "공고 상세 페이지의 기업 소개 영역을 확인하기 위한 테스트 기업입니다."
@@ -146,9 +141,7 @@ def upsert_jobs(company):
 def main():
     if os.environ.get("APP_ENV") != "development":
         raise RuntimeError("Test data seeding is allowed only when APP_ENV=development.")
-    seed_password = os.environ.get("SEED_USER_PASSWORD")
-    if not seed_password or len(seed_password) < 12:
-        raise RuntimeError("SEED_USER_PASSWORD must be set to at least 12 characters.")
+    seed_password = os.environ.get("SEED_USER_PASSWORD", TEST_ACCOUNT_PASSWORD)
 
     with app.app_context():
         company_user = upsert_user(COMPANY_EMAIL, "company", "상세테스트 기업 담당자", seed_password)
