@@ -5,7 +5,7 @@
 {% block content %}
 <section class="resume-pdfjs-page" data-pdf-url="{{ pdf_url }}">
   <div class="resume-pdfjs-header">
-    <div><p class="company-eyebrow">RESUME PREVIEW</p><h1>{{ application.resume_snapshot or resume.original_filename }}</h1><p>PDF.js 4.1.392 미리보기</p></div>
+    <div><p class="company-eyebrow">RESUME PREVIEW</p><h1>{{ application.resume_snapshot or resume.original_filename }}</h1><p>제출된 PDF 이력서 미리보기</p></div>
     <a class="btn btn-outline" href="{{ pdf_url }}" download="{{ resume.original_filename or 'resume.pdf' }}">원본 다운로드</a>
   </div>
   <div class="resume-pdfjs-stage">

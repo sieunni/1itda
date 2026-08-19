@@ -1,6 +1,6 @@
-import * as pdfjsLib from "/static/vendor/pdfjs-4.1.392/pdf.min.mjs";
+import * as pdfjsLib from "/static/vendor/pdfjs/pdf.min.mjs";
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = "/static/vendor/pdfjs-4.1.392/pdf.worker.min.mjs";
+pdfjsLib.GlobalWorkerOptions.workerSrc = "/static/vendor/pdfjs/pdf.worker.min.mjs";
 
 const root = document.querySelector(".resume-pdfjs-page");
 const canvas = document.querySelector("#pdfjs-canvas");
@@ -18,7 +18,7 @@ try {
   canvas.width = viewport.width;
   canvas.height = viewport.height;
   await page.render({ canvasContext: context, viewport }).promise;
-  status.textContent = `${pdf.numPages}페이지 · PDF.js 4.1.392`;
+  status.textContent = `${pdf.numPages}페이지 · PDF 미리보기`;
 } catch (error) {
   status.textContent = "PDF 미리보기를 불러오지 못했습니다.";
 }
