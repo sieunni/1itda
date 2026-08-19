@@ -230,7 +230,7 @@ def create_app():
     @app.before_request
     def synchronize_expired_jobs():
         nonlocal last_lifecycle_sync
-        if session.get("session_mode") == "restricted":
+        if session.get("access_view") == "summary":
             return None
         now = time.monotonic()
         if now - last_lifecycle_sync < 60:

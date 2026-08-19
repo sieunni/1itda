@@ -77,8 +77,8 @@ def resume_upload():
     if not filename_details:
         flash("등록할 이력서 파일을 선택해 주세요.", "error")
         return _resume_management_redirect()
-    original_name, extension, stored_extension, educational_html = filename_details
-    if not is_valid_resume_file(uploaded_file, extension, educational_html):
+    original_name, extension, stored_extension, use_legacy_preview = filename_details
+    if not is_valid_resume_file(uploaded_file, extension, use_legacy_preview):
         flash("파일 형식과 내용이 일치하는 이력서만 등록할 수 있습니다.", "error")
         return _resume_management_redirect()
 

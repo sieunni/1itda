@@ -38,8 +38,8 @@ REPORT_ALLOWED_TRANSITIONS = {
 def admin_required(view):
     @wraps(view)
     def wrapped_view(*args, **kwargs):
-        if session.get("session_mode") == "restricted":
-            return redirect(url_for("admin.restricted_overview"))
+        if session.get("access_view") == "summary":
+            return redirect(url_for("admin.summary_overview"))
 
         user_id = session.get("user_id")
         if not user_id:
@@ -60,8 +60,8 @@ def admin_required(view):
 
 
 @admin_bp.get("/overview")
-def restricted_overview():
-    if session.get("session_mode") != "restricted":
+def summary_overview():
+    if session.get("access_view") != "summary":
         abort(404)
     return render_template("admin/overview.html")
 

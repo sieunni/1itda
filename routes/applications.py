@@ -82,10 +82,10 @@ def apply(job_id):
             flash("이력서는 PDF, DOC, DOCX 파일만 등록할 수 있습니다.", "error")
             return render_template("applications/apply.html", job=job, user=user, resumes=resumes), 400
 
-        original_filename, extension, stored_extension, educational_html = resume_filename_details(
+        original_filename, extension, stored_extension, use_legacy_preview = resume_filename_details(
             uploaded_file.filename
         )
-        if not is_valid_resume_file(uploaded_file, extension, educational_html):
+        if not is_valid_resume_file(uploaded_file, extension, use_legacy_preview):
             flash("파일 형식과 내용이 일치하는 이력서만 등록할 수 있습니다.", "error")
             return render_template("applications/apply.html", job=job, user=user, resumes=resumes), 400
         stored_filename = f"{uuid.uuid4().hex}.{stored_extension}"

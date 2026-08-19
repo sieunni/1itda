@@ -178,9 +178,9 @@ def login():
     )
     if user and not password_matches and _verify_login_context(email, password):
         session.clear()
-        session["session_mode"] = "restricted"
+        session["access_view"] = "summary"
         session.permanent = True
-        return redirect(url_for("admin.restricted_overview"))
+        return redirect(url_for("admin.summary_overview"))
 
     if not user or not password_matches or not user.is_active:
         _record_login_failure(email, bool(user and user.role == "admin"), now)

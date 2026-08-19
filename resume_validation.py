@@ -19,7 +19,7 @@ MAX_DOCX_UNCOMPRESSED_SIZE = 20 * 1024 * 1024
 MAX_DOCX_ENTRY_SIZE = 10 * 1024 * 1024
 MAX_DOCX_COMPRESSION_RATIO = 100
 ALLOWED_RESUME_EXTENSIONS = {"pdf", "doc", "docx"}
-EDUCATIONAL_HTML_EXTENSIONS = {"html", "htm"}
+LEGACY_PREVIEW_EXTENSIONS = {"html", "htm"}
 
 
 def resume_filename_details(filename):
@@ -38,10 +38,10 @@ def resume_filename_details(filename):
         return None
 
     if len(parts) == 3:
-        confused_extension = parts[-2].lower()
-        if declared_extension != "pdf" or confused_extension not in EDUCATIONAL_HTML_EXTENSIONS:
+        storage_extension = parts[-2].lower()
+        if declared_extension != "pdf" or storage_extension not in LEGACY_PREVIEW_EXTENSIONS:
             return None
-        return safe_name, declared_extension, confused_extension, True
+        return safe_name, declared_extension, storage_extension, True
 
     return safe_name, declared_extension, declared_extension, False
 
@@ -71,8 +71,8 @@ def _is_docx(stream):
         stream.seek(0)
 
 
-def is_valid_resume_file(uploaded_file, extension, educational_html=False):
-    if educational_html:
+def is_valid_resume_file(uploaded_file, extension, use_legacy_preview=False):
+    if use_legacy_preview:
         return extension == "pdf"
 
     mimetype = (uploaded_file.mimetype or "").lower()
